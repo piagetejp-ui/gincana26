@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { doc, getDoc, getFirestore, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore'
 import {
   EmailAuthProvider,
   getAuth,
@@ -22,10 +22,12 @@ const app = initializeApp(config)
 const db = getFirestore(app)
 const auth = getAuth(app)
 
-const stateRef = () => doc(db, 'gincana2026', 'state')
-const backupRef = () => doc(db, 'gincana2026', 'backup_latest')
+const gincanaDoc = (id) => doc(db, 'gincana2026', id)
+const stateRef = () => gincanaDoc('state')
 
-export const firebaseEnabled = true
+function safeDocPart(value) {
+  return String(value || 'sem-sessao').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)
+}
 
 export function subscribeAuth(callback) {
   return onAuthStateChanged(auth, callback)
@@ -62,18 +64,49 @@ export async function saveRemoteState(state) {
     ...state,
     updatedAt: serverTimestamp(),
     updatedBy: auth.currentUser?.email || null,
-  }, { merge: true })
+  }, { merge: false })
 }
 
-export async function saveResetBackup(state) {
-  await setDoc(backupRef(), {
+// Cada sorteio é gravado de duas maneiras em uma única operação atômica:
+// 1) atualiza o estado corrente; 2) cria um documento de auditoria imutável da sessão.
+// Os documentos de auditoria ficam NA MESMA coleção gincana2026, portanto as regras
+// atuais match /gincana2026/{document} continuam suficientes.
+export async function commitDraw(state, auditEntry) {
+  const batch = writeBatch(db)
+  batch.set(stateRef(), {
     ...state,
+    updatedAt: serverTimestamp(),
+    updatedBy: auth.currentUser?.email || null,
+  }, { merge: false })
+
+  const auditId = `audit_${safeDocPart(auditEntry.sessionId)}_${String(auditEntry.drawNumber).padStart(3, '0')}`
+  batch.set(gincanaDoc(auditId), {
+    ...auditEntry,
+    serverAt: serverTimestamp(),
+    operator: auth.currentUser?.email || auditEntry.operator || null,
+  }, { merge: false })
+
+  await batch.commit()
+}
+
+// Reset atômico: primeiro preserva a sessão inteira em backup e, na mesma operação,
+// substitui o estado corrente por uma nova sessão zerada.
+export async function resetRemoteState(previousState, nextState) {
+  const batch = writeBatch(db)
+  const previousSession = safeDocPart(previousState?.sessionId || Date.now())
+  const backupPayload = {
+    ...previousState,
     backupCreatedAt: serverTimestamp(),
     backupCreatedBy: auth.currentUser?.email || null,
-  })
-}
+  }
 
-export async function readResetBackup() {
-  const snap = await getDoc(backupRef())
-  return snap.exists() ? snap.data() : null
+  batch.set(gincanaDoc(`backup_${previousSession}`), backupPayload, { merge: false })
+  batch.set(gincanaDoc('backup_latest'), backupPayload, { merge: false })
+  batch.set(stateRef(), {
+    ...nextState,
+    updatedAt: serverTimestamp(),
+    updatedBy: auth.currentUser?.email || null,
+  }, { merge: false })
+
+  await batch.commit()
 }
