@@ -1,87 +1,60 @@
-# São João da Fé 2026 — Pacote 06
+# Gincana 2026 — Escola Piaget
 
-## Base
-Este pacote parte do Pacote 03, validado com pagamento funcionando.
+Sistema de chamada de alunos e roleta de equipes para a Gincana 2026.
 
-## Objetivo
-Proteger o painel da secretaria usando Firebase Authentication com e-mail e senha.
+## Base cadastrada
+- 81 alunos ativos
+- Equipe Azul: 41
+- Equipe Laranja: 40
+- Ordem de chamada: aleatória com pequenas regras para evitar sequências artificiais
+- Resultado da roleta: sempre respeita a equipe previamente cadastrada
+- Roleta: 8 fatias (4 azuis + 4 laranjas) em padrão não alternado
 
-## O que mudou
-Apenas o painel da secretaria (`index.html`) foi alterado.
+## Rodar localmente
+```bash
+npm install
+npm run dev
+```
 
-Agora o acesso ao painel usa:
-- e-mail;
-- senha;
-- Firebase Authentication.
+## Firebase
+Esta versão já está configurada para o projeto Firebase `saojoao26-fc92c`.
 
-## O que NÃO foi alterado
-O motor de pagamento não foi mexido:
+O sistema usa somente:
+- coleção: `gincana2026`
+- documento: `state`
 
-- `comprar.html`
-- `obrigado.html`
-- `api/criar-pagamento.js`
-- `api/webhook-infinitepay.js`
-- `api/verificar-pagamento.js`
-- `package.json`
+Não é necessário apagar as coleções do sistema antigo do São João.
 
-## Passo 1 — ativar login no Firebase
+### Regras do Firestore
+Preserve as regras que já existem e acrescente um bloco para `gincana2026`.
+Para teste interno simples:
 
-No Firebase Console:
-
-1. Vá em `Authentication`
-2. Vá em `Sign-in method`
-3. Ative `Email/Password`
-4. Vá em `Users`
-5. Clique em `Add user`
-6. Crie o e-mail e senha da secretaria
-
-Exemplo:
-- Email: `secretaria@seudominio.com.br`
-- Senha: uma senha forte que será entregue apenas para a secretaria
-
-## Passo 2 — subir este pacote
-
-Suba os arquivos no GitHub mantendo a estrutura:
-
-- `index.html`
-- `comprar.html`
-- `obrigado.html`
-- `package.json`
-- `api/criar-pagamento.js`
-- `api/webhook-infinitepay.js`
-- `api/verificar-pagamento.js`
-
-Depois faça redeploy na Vercel.
-
-## Passo 3 — testar login
-
-Abra:
-
-`https://saojoao26.vercel.app/`
-
-Teste o login com o e-mail e senha criados no Firebase Authentication.
-
-## Passo 4 — fechar regras do Firestore
-
-Só faça isso depois de confirmar que o login funcionou.
-
-No Firestore Rules, use:
-
-```js
+```txt
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /sao_joao_fe_2026_pedidos/{document} {
-      allow read, write: if request.auth != null;
+    match /gincana2026/{document} {
+      allow read, write: if true;
     }
   }
 }
 ```
 
-Com isso, apenas usuário autenticado consegue ler e alterar os pedidos pelo painel.
+> Se as regras antigas já tiverem outros `match`, não substitua tudo pelo exemplo acima: adicione apenas o bloco `match /gincana2026/{document}` dentro de `match /databases/{database}/documents`.
 
-## Observação importante
+## Vercel
+Projeto Vite padrão.
+- Build command: `npm run build`
+- Output directory: `dist`
 
-O backend da Vercel continua conseguindo criar pedidos e confirmar pagamentos, porque usa Firebase Admin SDK.
-Essas regras bloqueiam apenas acesso direto pelo navegador sem login.
+Se a Vercel já estiver ligada ao repositório GitHub antigo, substituir os arquivos do repositório por estes e fazer push normalmente dispara um novo deploy.
+
+## Atalhos no evento
+- `Espaço`: chama o próximo aluno / gira a roleta
+- `F`: tela cheia
+
+## Antes do evento
+1. Fazer um deploy de teste.
+2. Conferir se dois navegadores/dispositivos acompanham o mesmo andamento pelo Firestore.
+3. Fazer um sorteio completo de ensaio e depois usar “Reiniciar” antes do evento oficial.
+4. Manter apenas uma tela/operador comandando o sorteio durante o evento.
