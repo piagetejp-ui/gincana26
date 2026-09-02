@@ -144,17 +144,100 @@ function shortSession(id) {
   return id ? String(id).split('-').slice(0, 2).join('-').toUpperCase() : '—'
 }
 
-function openPrintDocument({ title, subtitle, meta, body }) {
-  const popup = window.open('', '_blank', 'noopener,noreferrer')
-  if (!popup) {
-    alert('O navegador bloqueou a janela de impressão. Autorize pop-ups para este site e tente novamente.')
+function printHtmlDocument(html) {
+  const previous = document.getElementById('piaget-print-frame')
+  if (previous) previous.remove()
+
+  const iframe = document.createElement('iframe')
+  iframe.id = 'piaget-print-frame'
+  iframe.setAttribute('title', 'Documento para impressão')
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;z-index:-1;'
+  document.body.appendChild(iframe)
+
+  const win = iframe.contentWindow
+  const doc = iframe.contentDocument || win?.document
+  if (!win || !doc) {
+    iframe.remove()
+    alert('Não foi possível abrir a impressão neste navegador. Atualize a página e tente novamente.')
     return
   }
-  popup.document.open()
-  popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
-    @page{size:A4 portrait;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#172033;margin:0;font-size:10.5px}.header{border-bottom:3px solid #1f5eb8;padding-bottom:10px;margin-bottom:13px}.brand{display:flex;justify-content:space-between;gap:16px;align-items:flex-end}.brand h1{font-size:18px;margin:0;color:#164f9d}.brand strong{font-size:11px;letter-spacing:.08em}.subtitle{margin-top:4px;font-size:12px;font-weight:700}.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:5px 18px;background:#f3f6fa;border:1px solid #d9e1eb;padding:9px 10px;margin:12px 0}.meta div{display:flex;justify-content:space-between;gap:10px}.meta b{color:#33445d}.status{display:inline-block;padding:4px 8px;border:1px solid #b9c7da;background:#f6f8fb;border-radius:20px;font-weight:700}.team-head{margin:16px 0 7px;padding:8px 10px;color:#fff;font-size:13px}.team-head.azul{background:#155bc4}.team-head.laranja{background:#df7414}table{width:100%;border-collapse:collapse;margin-bottom:14px}th,td{border:1px solid #cfd8e5;padding:6px 7px;text-align:left;vertical-align:top}th{background:#edf2f8;font-size:9px;text-transform:uppercase;letter-spacing:.04em}td.num,th.num{width:48px;text-align:center}td.time,th.time{width:78px;text-align:center}td.grade,th.grade{width:72px}td.team,th.team{width:76px;font-weight:700}.foot{margin-top:15px;border-top:1px solid #cfd8e5;padding-top:8px;color:#66758b;font-size:9px}.empty{padding:24px;border:1px dashed #bdc9d8;text-align:center;color:#65758c}.sign{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:38px}.sign div{border-top:1px solid #555;text-align:center;padding-top:5px;font-size:9px}@media print{.no-print{display:none!important}}
-  </style></head><body><div class="header"><div class="brand"><div><strong>ESCOLA PIAGET</strong><h1>${escapeHtml(title)}</h1></div><span>GINCANA 2026</span></div><div class="subtitle">${escapeHtml(subtitle)}</div></div><div class="meta">${meta.map(([k,v]) => `<div><b>${escapeHtml(k)}</b><span>${escapeHtml(v)}</span></div>`).join('')}</div>${body}<div class="foot">Documento emitido pelo Sistema da Gincana 2026 da Escola Piaget em ${escapeHtml(formatDateTime(new Date().toISOString()))}. Os horários registrados correspondem ao dispositivo utilizado na operação; cada sorteio também é registrado no Firebase da sessão.</div><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250))<\/script></body></html>`)
-  popup.document.close()
+
+  let printed = false
+  const cleanup = () => setTimeout(() => iframe.remove(), 500)
+  const triggerPrint = () => {
+    if (printed) return
+    printed = true
+    setTimeout(() => {
+      try {
+        win.focus()
+        win.print()
+      } catch {
+        cleanup()
+        alert('Não foi possível iniciar a impressão. Tente novamente pelo Chrome.')
+      }
+    }, 350)
+  }
+
+  iframe.onload = triggerPrint
+  try { win.addEventListener('afterprint', cleanup, { once: true }) } catch {}
+  doc.open()
+  doc.write(html)
+  doc.close()
+
+  // Fallback para navegadores que não disparam load no iframe de impressão.
+  setTimeout(triggerPrint, 1400)
+  setTimeout(cleanup, 120000)
+}
+
+function reportPageHtml({ title, subtitle, meta, content, badge = 'DOCUMENTO OFICIAL', page = 1, totalPages = 1 }) {
+  const logoUrl = `${window.location.origin}/logo-piaget.png`
+  const metaHtml = meta.map(([key, value]) => `<div class="meta-item"><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')
+  return `<section class="sheet">
+    <div class="top-stripe"></div>
+    <header class="print-header">
+      <div class="brand-lockup"><img src="${logoUrl}" alt="Escola Piaget"></div>
+      <div class="event-lockup"><span>GINCANA 2026</span><strong>${escapeHtml(badge)}</strong></div>
+    </header>
+    <div class="blue-rule"></div>
+    <div class="title-block"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div>
+    <div class="meta-grid">${metaHtml}</div>
+    <main class="print-content">${content}</main>
+    <footer class="print-footer"><div><strong>ESCOLA PIAGET</strong> • CNPJ 41.270.679/0001-16 • INEP 2202343</div><div>Emitido em ${escapeHtml(formatDateTime(new Date().toISOString()))} • Página ${page}/${totalPages}</div></footer>
+  </section>`
+}
+
+function openPrintDocument({ pages, orientation = 'portrait' }) {
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gincana 2026 - Escola Piaget</title><style>
+    @page{size:A4 ${orientation};margin:8mm}
+    *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    html,body{margin:0;padding:0;background:#fff;color:#12203a;font-family:Arial,Helvetica,sans-serif}
+    body{font-size:8.2pt}
+    .sheet{page-break-after:always;break-after:page;position:relative;min-height:276mm;display:flex;flex-direction:column;background:#fff;overflow:hidden}
+    .sheet:last-child{page-break-after:auto;break-after:auto}
+    .top-stripe{height:2.5mm;background:#f58b1f;flex:0 0 auto}
+    .print-header{display:flex;align-items:center;justify-content:space-between;gap:8mm;padding:3mm 1mm 2.4mm}
+    .brand-lockup{display:flex;align-items:center}.brand-lockup img{width:35mm;height:auto;display:block}
+    .event-lockup{text-align:right;display:flex;flex-direction:column;align-items:flex-end}.event-lockup span{font-size:7pt;letter-spacing:.18em;color:#63728a;font-weight:800}.event-lockup strong{margin-top:1mm;padding:1.4mm 2.6mm;border-radius:99px;background:#eef3fb;color:#174e9e;font-size:7.2pt;letter-spacing:.08em}
+    .blue-rule{height:.8mm;background:#1557a8;margin:0 1mm}
+    .title-block{text-align:center;padding:3.2mm 2mm 2.2mm}.title-block h1{margin:0;color:#154f9e;font-size:15.2pt;line-height:1.05;text-transform:uppercase;letter-spacing:.025em}.title-block p{margin:1.2mm 0 0;color:#52627a;font-size:7.6pt;font-weight:700}
+    .meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1.6mm;margin:0 1mm 2.5mm}.meta-item{border:1px solid #d7e0eb;background:#f6f8fb;border-radius:2mm;padding:1.6mm 1.8mm;min-width:0}.meta-item span{display:block;font-size:5.8pt;text-transform:uppercase;letter-spacing:.08em;color:#6e7d91;font-weight:800}.meta-item strong{display:block;margin-top:.5mm;font-size:7.2pt;color:#1d2c44;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .print-content{flex:1;min-height:0;padding:0 1mm}
+    .team-banner{display:flex;align-items:center;justify-content:space-between;color:#fff;border-radius:2.2mm;padding:2.2mm 3mm;margin:0 0 1.8mm;font-weight:900;letter-spacing:.06em;font-size:10.2pt}.team-banner small{font-size:7pt;letter-spacing:.02em;font-weight:700;opacity:.94}.team-banner.azul{background:#155bc4}.team-banner.laranja{background:#e67817}
+    .notice{margin:0 0 2mm;padding:1.6mm 2mm;border:1px solid #d8e0ea;background:#f8fafc;border-radius:1.8mm;color:#53647b;font-size:6.6pt}.notice strong{color:#1d2d46}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;margin:0}
+    thead{display:table-header-group}tr{page-break-inside:avoid;break-inside:avoid}
+    th{background:#edf2f8;color:#44566f;font-size:6.2pt;text-transform:uppercase;letter-spacing:.05em;font-weight:900;border:1px solid #cbd6e3;padding:1.35mm 1.2mm;text-align:left}
+    td{border:1px solid #d3dce7;padding:.72mm 1.2mm;font-size:7.05pt;line-height:1.08;vertical-align:middle;color:#17263d}
+    tbody tr:nth-child(even) td{background:#fbfcfe}
+    .c-num{width:10mm;text-align:center}.c-order{width:12mm;text-align:center}.c-time{width:21mm;text-align:center;font-variant-numeric:tabular-nums}.c-grade{width:18mm;text-align:center}.c-team{width:20mm;text-align:center;font-weight:900}.student-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .team-cell{font-size:6.4pt;font-weight:900;letter-spacing:.05em}.team-cell.azul{color:#155bc4;background:#eef4ff!important}.team-cell.laranja{color:#c85f08;background:#fff3e8!important}
+    .grade-section{margin:0 0 2.2mm}.grade-title{display:flex;justify-content:space-between;align-items:center;background:#eff3f8;border:1px solid #d2dce8;border-bottom:0;padding:1.5mm 2mm;font-size:7.5pt;font-weight:900;color:#35465e}.grade-title span{font-size:6.2pt;color:#6e7d91}.division-content .grade-section{margin-bottom:1mm}.division-content .grade-title{padding:.85mm 1.8mm;font-size:6.8pt}.division-content .grade-title span{font-size:5.8pt}.division-content td{padding:.38mm 1.1mm;font-size:6.55pt;line-height:1}.division-content .notice{margin-bottom:1.2mm;padding:1.2mm 1.8mm}.division-content .team-banner{padding:1.8mm 2.6mm;margin-bottom:1.2mm}
+    .empty{border:1px dashed #b8c5d5;background:#fafbfd;padding:10mm;text-align:center;color:#65758b;border-radius:2mm}
+    .audit-note{font-size:6.3pt;color:#617187;margin:0 0 1.8mm}.audit-note b{color:#24344c}
+    .print-footer{flex:0 0 auto;margin:2.8mm 1mm 0;padding:1.8mm 0 0;border-top:.5px solid #bfcbd8;display:flex;justify-content:space-between;gap:5mm;color:#67768a;font-size:5.7pt}.print-footer strong{color:#3b4b62}
+    @media screen{body{background:#e9eef5;padding:12px}.sheet{width:210mm;margin:0 auto 12px;box-shadow:0 6px 30px rgba(0,0,0,.15);padding:0}}
+  </style></head><body>${pages.join('')}</body></html>`
+  printHtmlDocument(html)
 }
 
 function LoginScreen() {
@@ -342,14 +425,51 @@ function App({ user }) {
         {(phase === 'idle' || (phase === 'result' && !current)) && !done && <div className="hero"><div className="orb"><span>{progress + 1}</span><small>PRÓXIMO</small></div><h1>Quem será chamado agora?</h1><p>A ordem é escolhida entre os participantes ainda não chamados.</p><button className="primary" onClick={startStudentDraw}>CHAMAR PRÓXIMO ALUNO</button></div>}
         {phase === 'shuffling' && <div className="shuffle"><span className="scanline" /><div className="shuffle-kicker">ESCOLHENDO O PRÓXIMO PARTICIPANTE</div><div className="shuffle-name">{shuffleText}</div><div className="shuffle-dots"><i /><i /><i /></div></div>}
         {(phase === 'revealed' || phase === 'spinning') && current && <div className="reveal-layout"><div className={`student-card ${phase === 'spinning' ? 'compact' : ''}`}><span>{phase === 'spinning' ? 'SORTEANDO EQUIPE PARA' : 'PARTICIPANTE SELECIONADO'}</span>{phase === 'spinning' ? <h2>{current.name}</h2> : <h1>{current.name}</h1>}<strong>{current.grade}</strong>{phase === 'spinning' ? <p className="suspense">A roleta está girando…</p> : <><p>Agora é hora de descobrir a equipe.</p><button className="primary" onClick={spinWheel}>GIRAR A ROLETA</button></>}</div><Wheel rotation={rotation} spinning={phase === 'spinning'} /></div>}
-        {phase === 'result' && current && <div className="result-card"><div className="result-badge">RESULTADO • #{progress}</div><h2>{current.name}</h2><span>{current.grade}</span><div className={`team-title ${current.team.toLowerCase()}`}>EQUIPE {current.team}</div>{!done ? <button className="primary" onClick={startStudentDraw}>PRÓXIMO ALUNO</button> : <button className="primary" onClick={() => setAdminOpen(true)}>ABRIR ÁREA PROTEGIDA</button>}</div>}
-        {done && phase !== 'result' && <div className="hero"><h1>Sorteio concluído!</h1><p>Os 81 participantes foram chamados. Os relatórios oficiais estão na área protegida.</p><button className="primary" onClick={() => setAdminOpen(true)}>ABRIR ÁREA PROTEGIDA</button></div>}
+        {phase === 'result' && current && !done && <div className="result-card"><div className="result-badge">RESULTADO • #{progress}</div><h2>{current.name}</h2><span>{current.grade}</span><div className={`team-title ${current.team.toLowerCase()}`}>EQUIPE {current.team}</div><button className="primary" onClick={startStudentDraw}>PRÓXIMO ALUNO</button></div>}
+        {done && <FinalResults state={persisted} onAdmin={() => setAdminOpen(true)} />}
       </section>
 
       <aside className="panel"><div className="progress-card"><div><span>PROGRESSO</span><strong>{progress}<small>/81</small></strong></div><div className="progress-bar"><i style={{ width: `${(progress / 81) * 100}%` }} /></div></div><div className="stats"><div><span>👥</span><strong>{STUDENTS.length}</strong><small>Participantes</small></div><div><span>⏳</span><strong>{STUDENTS.length - progress}</strong><small>Restantes</small></div></div><div className="recent"><h3>Últimos chamados</h3>{persisted.history.slice(-5).reverse().map((h) => <div className="recent-row" key={`${h.id}-${h.drawNumber}`}><i className={h.team.toLowerCase()} /><span>{h.name}</span><small>{h.grade}</small></div>)}{!persisted.history.length && <p>Nenhum aluno chamado ainda.</p>}</div><div className="hint">Atalhos: <kbd>Espaço</kbd> avançar • <kbd>F</kbd> tela cheia</div><button className="danger-link" onClick={() => setAdminOpen(true)}>🔒 Área protegida</button></aside>
     </main>
 
     {adminOpen && <ProtectedArea state={persisted} user={user} onClose={() => setAdminOpen(false)} onReset={applyReset} />}
+  </div>
+}
+
+
+function FinalResults({ state, onAdmin }) {
+  const teams = ['AZUL', 'LARANJA']
+  const grouped = Object.fromEntries(teams.map((team) => [team, state.history.filter((h) => h.team === team)]))
+
+  return <div className="final-results">
+    <div className="final-results-head">
+      <div className="final-check">✓</div>
+      <div>
+        <span>GINCANA PIAGET 2026</span>
+        <h1>Sorteio concluído!</h1>
+        <p>Resultado final das equipes • 81 participantes</p>
+      </div>
+    </div>
+
+    <div className="final-team-grid">
+      {teams.map((team) => <section className={`final-team ${team.toLowerCase()}`} key={team}>
+        <header>
+          <div><span>EQUIPE</span><strong>{team}</strong></div>
+          <b>{grouped[team].length}<small> integrantes</small></b>
+        </header>
+        <ol>
+          {grouped[team].map((h, i) => <li key={`${team}-${h.drawNumber}`}>
+            <span className="final-order">{String(i + 1).padStart(2, '0')}</span>
+            <span className="final-name">{h.name}<small>{h.grade}</small></span>
+          </li>)}
+        </ol>
+      </section>)}
+    </div>
+
+    <div className="final-results-foot">
+      <span>Integrantes apresentados na ordem em que foram sorteados.</span>
+      <button className="ghost final-admin" onClick={onAdmin}>🔒 Área protegida</button>
+    </div>
   </div>
 }
 
@@ -395,8 +515,24 @@ function AdminMenu({ state, setView }) {
 function AuditView({ state }) {
   const rows = state.history
   function print() {
-    const body = rows.length ? `<table><thead><tr><th class="num">Nº</th><th class="time">Horário</th><th>Aluno</th><th class="grade">Turma</th><th class="team">Equipe</th></tr></thead><tbody>${rows.map((h) => `<tr><td class="num">${h.drawNumber}</td><td class="time">${escapeHtml(formatTime(h.at))}</td><td>${escapeHtml(h.name)}</td><td class="grade">${escapeHtml(h.grade)}</td><td class="team">${escapeHtml(h.team)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhum sorteio registrado nesta sessão.</div>'
-    openPrintDocument({ title: 'RELATÓRIO DE AUDITORIA DO SORTEIO', subtitle: 'Registro cronológico oficial da sessão', meta: [['Sessão', shortSession(state.sessionId)], ['Início da sessão', formatDateTime(state.sessionStartedAt)], ['Registros', `${rows.length} de ${STUDENTS.length}`], ['Status', rows.length === STUDENTS.length ? 'CONCLUÍDO' : 'PARCIAL']], body })
+    const perPage = 42
+    const chunks = rows.length ? Array.from({ length: Math.ceil(rows.length / perPage) }, (_, i) => rows.slice(i * perPage, (i + 1) * perPage)) : [[]]
+    const status = rows.length === STUDENTS.length ? 'CONCLUÍDO' : 'PARCIAL'
+    const finishedAt = rows.length ? rows[rows.length - 1].at : null
+    const pages = chunks.map((chunk, pageIndex) => {
+      const table = chunk.length ? `<table><thead><tr><th class="c-order">Ordem</th><th class="c-time">Horário</th><th>Aluno</th><th class="c-grade">Turma</th><th class="c-team">Equipe</th></tr></thead><tbody>${chunk.map((h) => `<tr><td class="c-order">${h.drawNumber}</td><td class="c-time">${escapeHtml(formatTime(h.at))}</td><td class="student-name">${escapeHtml(h.name)}</td><td class="c-grade">${escapeHtml(h.grade)}</td><td class="c-team team-cell ${h.team.toLowerCase()}">${escapeHtml(h.team)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhum sorteio registrado nesta sessão.</div>'
+      const content = `<div class="notice"><strong>Registro de auditoria:</strong> esta relação reproduz a ordem cronológica dos sorteios concluídos na sessão, com horário registrado pelo dispositivo de operação.</div>${table}`
+      return reportPageHtml({
+        title: 'Relatório de Auditoria do Sorteio',
+        subtitle: 'Registro cronológico oficial da sessão da Gincana 2026',
+        badge: status === 'CONCLUÍDO' ? 'AUDITORIA OFICIAL' : 'AUDITORIA PARCIAL',
+        meta: [['Sessão', shortSession(state.sessionId)], ['Início', formatDateTime(state.sessionStartedAt)], ['Conclusão', finishedAt ? formatDateTime(finishedAt) : 'Em andamento'], ['Registros', `${rows.length} de ${STUDENTS.length}`]],
+        content,
+        page: pageIndex + 1,
+        totalPages: chunks.length,
+      })
+    })
+    openPrintDocument({ pages })
   }
   return <div className="admin-view"><div className="report-toolbar"><div><span>REGISTRO CRONOLÓGICO</span><strong>{rows.length} sorteios registrados</strong></div><button className="primary small" onClick={print}>IMPRIMIR / SALVAR PDF</button></div><div className="report-meta"><span>Sessão <b>{shortSession(state.sessionId)}</b></span><span>Início <b>{formatDateTime(state.sessionStartedAt)}</b></span><span>Status <b>{rows.length === STUDENTS.length ? 'CONCLUÍDO' : 'PARCIAL'}</b></span></div><div className="table-wrap"><table className="admin-table"><thead><tr><th>#</th><th>Horário</th><th>Aluno</th><th>Turma</th><th>Equipe</th></tr></thead><tbody>{rows.map((h) => <tr key={`${h.sessionId}-${h.drawNumber}`}><td>{h.drawNumber}</td><td>{formatTime(h.at)}</td><td>{h.name}</td><td>{h.grade}</td><td><span className={`team-pill ${h.team.toLowerCase()}`}>{h.team}</span></td></tr>)}{!rows.length && <tr><td colSpan="5" className="empty-cell">Nenhum sorteio registrado nesta sessão.</td></tr>}</tbody></table></div></div>
 }
@@ -405,8 +541,24 @@ function ResultView({ state }) {
   const teams = ['AZUL', 'LARANJA']
   const grouped = Object.fromEntries(teams.map((team) => [team, state.history.filter((h) => h.team === team)]))
   function print() {
-    const body = teams.map((team) => `<div class="team-head ${team.toLowerCase()}">EQUIPE ${team} — ${grouped[team].length} integrante${grouped[team].length === 1 ? '' : 's'}</div>${grouped[team].length ? `<table><thead><tr><th class="num">Ordem equipe</th><th class="num">Ordem geral</th><th class="time">Horário</th><th>Aluno</th><th class="grade">Turma</th></tr></thead><tbody>${grouped[team].map((h, i) => `<tr><td class="num">${i + 1}</td><td class="num">${h.drawNumber}</td><td class="time">${escapeHtml(formatTime(h.at))}</td><td>${escapeHtml(h.name)}</td><td class="grade">${escapeHtml(h.grade)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhum integrante sorteado para esta equipe nesta sessão.</div>'}`).join('')
-    openPrintDocument({ title: 'RESULTADO OFICIAL DO SORTEIO', subtitle: state.history.length === STUDENTS.length ? 'Composição final das equipes por ordem de sorteio' : 'Composição parcial das equipes por ordem de sorteio', meta: [['Sessão', shortSession(state.sessionId)], ['Início da sessão', formatDateTime(state.sessionStartedAt)], ['Sorteados', `${state.history.length} de ${STUDENTS.length}`], ['Status', state.history.length === STUDENTS.length ? 'CONCLUÍDO' : 'PARCIAL']], body })
+    const status = state.history.length === STUDENTS.length ? 'CONCLUÍDO' : 'PARCIAL'
+    const finishedAt = state.history.length ? state.history[state.history.length - 1].at : null
+    const pages = teams.map((team, pageIndex) => {
+      const rows = grouped[team]
+      const content = `<div class="team-banner ${team.toLowerCase()}"><span>EQUIPE ${team}</span><small>${rows.length} integrante${rows.length === 1 ? '' : 's'} • ordem do sorteio</small></div>
+        <div class="notice"><strong>Resultado ${status === 'CONCLUÍDO' ? 'consolidado' : 'parcial'}:</strong> os integrantes estão apresentados na sequência em que foram sorteados, mantendo o número da ordem geral e o horário de cada registro.</div>
+        ${rows.length ? `<table><thead><tr><th class="c-num"># Equipe</th><th class="c-order">Geral</th><th class="c-time">Horário</th><th>Aluno</th><th class="c-grade">Turma</th></tr></thead><tbody>${rows.map((h, i) => `<tr><td class="c-num">${i + 1}</td><td class="c-order">${h.drawNumber}</td><td class="c-time">${escapeHtml(formatTime(h.at))}</td><td class="student-name">${escapeHtml(h.name)}</td><td class="c-grade">${escapeHtml(h.grade)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhum integrante sorteado para esta equipe nesta sessão.</div>'}`
+      return reportPageHtml({
+        title: 'Resultado Oficial do Sorteio',
+        subtitle: status === 'CONCLUÍDO' ? 'Composição final das equipes - Gincana 2026' : 'Composição parcial das equipes - Gincana 2026',
+        badge: status === 'CONCLUÍDO' ? 'RESULTADO OFICIAL' : 'RESULTADO PARCIAL',
+        meta: [['Sessão', shortSession(state.sessionId)], ['Início', formatDateTime(state.sessionStartedAt)], ['Conclusão', finishedAt ? formatDateTime(finishedAt) : 'Em andamento'], ['Equipe', `${team} • ${rows.length} integrantes`]],
+        content,
+        page: pageIndex + 1,
+        totalPages: teams.length,
+      })
+    })
+    openPrintDocument({ pages })
   }
   return <div className="admin-view"><div className="report-toolbar"><div><span>RESULTADO DA SESSÃO</span><strong>{state.history.length === STUDENTS.length ? 'Resultado concluído' : `Resultado parcial • ${state.history.length}/81`}</strong></div><button className="primary small" onClick={print}>IMPRIMIR / SALVAR PDF</button></div><div className="result-summary"><div className="azul"><span>Equipe Azul</span><strong>{grouped.AZUL.length}</strong></div><div className="laranja"><span>Equipe Laranja</span><strong>{grouped.LARANJA.length}</strong></div></div><div className="result-tables">{teams.map((team) => <section key={team} className={`result-team ${team.toLowerCase()}`}><h3>EQUIPE {team}<small>{grouped[team].length}</small></h3><div className="table-wrap"><table className="admin-table"><thead><tr><th>Na equipe</th><th>Geral</th><th>Horário</th><th>Aluno</th><th>Turma</th></tr></thead><tbody>{grouped[team].map((h, i) => <tr key={`${team}-${h.drawNumber}`}><td>{i + 1}</td><td>{h.drawNumber}</td><td>{formatTime(h.at)}</td><td>{h.name}</td><td>{h.grade}</td></tr>)}{!grouped[team].length && <tr><td colSpan="5" className="empty-cell">Ainda sem integrantes sorteados.</td></tr>}</tbody></table></div></section>)}</div></div>
 }
@@ -414,8 +566,24 @@ function ResultView({ state }) {
 function DivisionView() {
   const grades = ['6º Ano', '7º Ano', '8º Ano', '9º Ano']
   function print() {
-    const body = ['AZUL', 'LARANJA'].map((team) => `<div class="team-head ${team.toLowerCase()}">EQUIPE ${team} — ${TEAM_COUNTS[team]} alunos</div>${grades.map((grade) => { const list = STUDENTS.filter((s) => s.team === team && s.grade === grade); return `<table><thead><tr><th colspan="2">${escapeHtml(grade)} — ${list.length}</th></tr></thead><tbody>${list.map((s, i) => `<tr><td class="num">${i + 1}</td><td>${escapeHtml(s.name)}</td></tr>`).join('')}</tbody></table>` }).join('')}`).join('')
-    openPrintDocument({ title: 'DIVISÃO OFICIAL CADASTRADA', subtitle: 'Relação-base restrita da Gincana 2026', meta: [['Participantes', '81'], ['Equipe Azul', '41'], ['Equipe Laranja', '40'], ['Acesso', 'ÁREA PROTEGIDA']], body })
+    const teams = ['AZUL', 'LARANJA']
+    const pages = teams.map((team, pageIndex) => {
+      const sections = grades.map((grade) => {
+        const list = STUDENTS.filter((s) => s.team === team && s.grade === grade)
+        return `<section class="grade-section"><div class="grade-title"><strong>${escapeHtml(grade)}</strong><span>${list.length} aluno${list.length === 1 ? '' : 's'}</span></div><table><tbody>${list.map((s, i) => `<tr><td class="c-num">${i + 1}</td><td class="student-name">${escapeHtml(s.name)}</td></tr>`).join('')}</tbody></table></section>`
+      }).join('')
+      const content = `<div class="division-content"><div class="team-banner ${team.toLowerCase()}"><span>EQUIPE ${team}</span><small>${TEAM_COUNTS[team]} alunos cadastrados</small></div><div class="notice"><strong>Relação-base protegida:</strong> composição cadastrada antes da execução da animação do sorteio, organizada por turma.</div>${sections}</div>`
+      return reportPageHtml({
+        title: 'Divisão Oficial Cadastrada',
+        subtitle: 'Relação-base restrita da Gincana 2026',
+        badge: 'ÁREA PROTEGIDA',
+        meta: [['Participantes', '81'], ['Equipe Azul', '41'], ['Equipe Laranja', '40'], ['Equipe desta página', `${team} • ${TEAM_COUNTS[team]} alunos`]],
+        content,
+        page: pageIndex + 1,
+        totalPages: teams.length,
+      })
+    })
+    openPrintDocument({ pages })
   }
   return <div className="admin-view"><div className="report-toolbar"><div><span>RELAÇÃO RESTRITA</span><strong>81 alunos • 41 Azul • 40 Laranja</strong></div><button className="primary small" onClick={print}>IMPRIMIR / SALVAR PDF</button></div><div className="team-columns admin-division">{['AZUL', 'LARANJA'].map((team) => <section className={`team-list ${team.toLowerCase()}`} key={team}><h3>EQUIPE {team} <small>{TEAM_COUNTS[team]} alunos</small></h3>{grades.map((grade) => { const list = STUDENTS.filter((s) => s.team === team && s.grade === grade); return <div className="grade-list" key={grade}><h4>{grade} <small>{list.length}</small></h4><ol>{list.map((s) => <li key={s.id}>{s.name}</li>)}</ol></div> })}</section>)}</div></div>
 }

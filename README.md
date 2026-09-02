@@ -1,77 +1,68 @@
-# Gincana Piaget 2026 — Sistema de Chamada e Roleta
+# Gincana Piaget 2026 — RC5 PDF Oficial
 
-Sistema preparado para substituir o front-end antigo do São João no repositório `piagetejp-ui/gincana26`.
+Sistema de chamada e apresentação das equipes da Gincana 2026 da Escola Piaget.
 
-## Base validada
-
+## Base
 - 81 alunos ativos
-- Equipe Azul: 41
-- Equipe Laranja: 40
-- 6º ao 9º Ano
+- 41 integrantes cadastrados na Equipe Azul
+- 40 integrantes cadastrados na Equipe Laranja
+- Chamada sem repetição
+- Roleta visual com 8 fatias
 
-## Funcionamento
+## Firebase
+Projeto: `saojoao26-fc92c`
 
-1. Login obrigatório pelo Firebase Authentication (E-mail/Senha).
-2. Chamada visual de um aluno ainda não chamado.
-3. A ordem dos alunos varia para reduzir repetições de turma e padrões muito óbvios entre equipes.
-4. Roleta visual com 8 fatias: 4 azuis e 4 laranjas.
-5. A roleta sempre termina em uma fatia da equipe previamente definida para o aluno.
-6. Resultado é salvo em `gincana2026/state` no Firestore e espelhado no `localStorage`.
-7. A relação oficial pode ser aberta e impressa.
+A coleção usada é `gincana2026`.
 
-## Reset para testes
+Documentos principais:
+- `state`: estado corrente da sessão
+- `audit_<sessao>_<ordem>`: registro individual de auditoria de cada sorteio
+- `backup_<sessao>`: backup de uma sessão encerrada por reset
+- `backup_latest`: último backup
 
-O reset possui várias camadas de proteção:
+## Área protegida
+A área administrativa exige reautenticação por senha e reúne:
+1. Auditoria do sorteio.
+2. Resultado oficial.
+3. Divisão oficial cadastrada.
+4. Reset protegido.
 
-- fica em uma área discreta do painel lateral;
-- exige marcar uma confirmação;
-- exige digitar exatamente `RESETAR GINCANA`;
-- exige a senha atual do usuário autenticado;
-- faz reautenticação no Firebase;
-- exige uma espera final de 5 segundos;
-- cria backup automático antes de zerar em `gincana2026/backup_latest` e no navegador.
+## RC5 — impressão e PDFs oficiais
+A alteração desta versão é restrita à estrutura de impressão/PDF. A lógica do sorteio e do Firebase permanece a mesma da RC4.
 
-## Regras do Firestore
+### Correção da impressão
+A impressão não usa mais `window.open`, evitando bloqueio de pop-up. O documento é preparado em um iframe interno e abre diretamente o diálogo do navegador para **Imprimir / Salvar como PDF**.
 
-Publique o conteúdo de `firestore.rules` no Firebase Console. Ele preserva a coleção antiga do São João e libera a Gincana apenas para usuários autenticados.
+### Resultado oficial
+- 2 páginas A4 retrato, uma por equipe.
+- Equipe Azul e Equipe Laranja com identidade visual própria.
+- Ordem dentro da equipe, ordem geral do sorteio, horário com segundos, nome completo e turma.
+- Sessão, início, conclusão e quantidade de integrantes no cabeçalho.
+- Logomarca e identificação institucional.
+- Formato pensado para impressão e exposição em mural.
 
-## Firebase Authentication
+### Auditoria oficial
+- 2 páginas A4 retrato.
+- 81 registros em ordem cronológica.
+- Ordem, horário, aluno, turma e equipe.
+- Equipes destacadas discretamente por cor.
+- Cabeçalho repetido em cada página e paginação no rodapé.
 
-O projeto já usa o Firebase `saojoao26-fc92c`. Mantenha `Authentication > Sign-in method > Email/Password` ativado e use um usuário já cadastrado.
+### Divisão oficial cadastrada
+- 2 páginas A4 retrato, uma por equipe.
+- Organização por turma.
+- Layout compacto, sem sobreposições e com todos os 81 alunos.
 
-## Publicação no GitHub/Vercel
+## Verificação visual
+Os três modelos foram renderizados em A4 com a base completa (41 Azul / 40 Laranja). Resultado: 2 páginas para cada relatório, sem textos cortados, sem sobreposição com rodapé e sem quebra de nomes para fora das tabelas.
 
-Para transformar o repositório antigo em Gincana, deixe estes arquivos/pastas na raiz:
+## Execução
+```bash
+npm install
+npm run dev
+```
 
-- `index.html`
-- `package.json`
-- `vite.config.js`
-- `src/`
-- `README.md`
-
-Os arquivos antigos `comprar.html`, `obrigado.html` e `api/` não são usados pela Gincana e podem ser removidos do repositório para uma implantação limpa.
-
-### Vercel
-
-- Framework: Vite
-- Build command: `npm run build`
-- Output directory: `dist`
-- Install command: `npm install`
-
-O Vercel normalmente detecta Vite automaticamente.
-
-## Teste rápido antes do evento
-
-1. Entre no sistema.
-2. Faça 3 a 5 chamadas completas, incluindo a roleta.
-3. Atualize a página e confirme que o progresso continua.
-4. Teste em tela cheia.
-5. Use o reset protegido e confirme que volta para 0/81.
-6. Faça uma última atualização da página e confirme 0/81 antes do sorteio oficial.
-
-## RC2 — correções de apresentação
-- Corrigida a animação da roleta: o componente não é mais remontado ao iniciar o giro, permitindo a transição visual completa de 4,65 s.
-- Removido o atalho público **Equipes**.
-- A relação completa das equipes agora fica exclusivamente na **Área protegida**, que exige nova confirmação da senha do usuário autenticado.
-- O reset permanece com confirmação reforçada (frase + senha + contagem regressiva) e backup automático.
-- O painel público não mostra mais os totais finais por equipe; exibe apenas participantes e quantidade restante.
+Build:
+```bash
+npm run build
+```
