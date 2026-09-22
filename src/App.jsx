@@ -21,6 +21,37 @@ const EVENT = {
   ]
 }
 
+const GUIDE_ITEMS = [
+  {
+    emoji: '🍔',
+    title: 'Alimentação',
+    text: 'Haverá venda de refrigerantes, salgados, bombons e lanches rápidos. Não haverá venda de almoço; cada participante deverá levar o seu.',
+    light: '#FFF3E5',
+    accent: '#EF7F1A'
+  },
+  {
+    emoji: '🏊',
+    title: 'Recreação com piscina',
+    text: 'Leve roupa de banho, toalha e protetor solar para o momento de lazer e atividades aquáticas.',
+    light: '#E8F4FF',
+    accent: '#1C7AE8'
+  },
+  {
+    emoji: '🪑',
+    title: 'Estrutura',
+    text: 'O espaço possui mesas e cadeiras em quantidade limitada. Recomendamos chegar cedo.',
+    light: '#F3F6FB',
+    accent: '#46627E'
+  },
+  {
+    emoji: '💧',
+    title: 'Conforto',
+    text: 'Leve água, cooler ou garrafa térmica com suas bebidas e os itens pessoais necessários para o dia.',
+    light: '#EAF8F6',
+    accent: '#1D9B84'
+  }
+]
+
 const money = cents => (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const fmtDate = value => {
@@ -143,10 +174,13 @@ function EventInfo() {
       </section>
 
       <section className="section guidance-grid">
-        <article className="info-card"><div className="info-icon">🍔</div><h3>Alimentação</h3><p>Haverá venda de refrigerantes, salgados, bombons e lanches rápidos. Não haverá venda de almoço; cada participante deverá levar o seu.</p></article>
-        <article className="info-card"><div className="info-icon">🏊</div><h3>Recreação com piscina</h3><p>Leve roupa de banho, toalha e protetor solar para o momento de lazer e atividades aquáticas.</p></article>
-        <article className="info-card"><div className="info-icon">🪑</div><h3>Estrutura</h3><p>O espaço possui mesas e cadeiras em quantidade limitada. Recomendamos chegar cedo.</p></article>
-        <article className="info-card"><div className="info-icon">💧</div><h3>Conforto</h3><p>Leve água, cooler ou garrafa térmica com suas bebidas e os itens pessoais necessários para o dia.</p></article>
+        {GUIDE_ITEMS.map(item => (
+          <article className="info-card" key={item.title}>
+            <div className="info-icon">{item.emoji}</div>
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
+          </article>
+        ))}
       </section>
     </>
   )
@@ -188,7 +222,7 @@ function PublicApp() {
     <main>
       <EventInfo />
       <section id="confirmar" className="section confirm-section">
-        <div className="section-heading"><span>Confirmação</span><h2>Confirme a participação do aluno</h2><p>Escolha a turma e procure o nome. Você pode adicionar irmãos e fazer um único pagamento.</p></div>
+        <div className="section-heading"><span>Confirmação</span><h2>Confirme a participação do aluno</h2><p>Escolha a turma, procure o nome e, se precisar, adicione irmãos no mesmo pagamento.</p></div>
         <div className="checkout-card">
           <StudentPicker selected={students} onAdd={add} />
           <SelectedStudents students={students} onRemove={remove} />
@@ -205,11 +239,12 @@ function PublicApp() {
             <p>Pagamento seguro pela InfinitePay. Pix ou cartão de crédito, com parcelamento disponível no checkout.</p>
           </div>
           {error && <div className="alert error">{error}</div>}
-          <button className="primary wide" onClick={pay} disabled={loading || !students.length}>{loading ? 'Preparando pagamento...' : `Pagar ${money(total)}`}</button>
+          <button className="primary wide mobile-large-button" onClick={pay} disabled={loading || !students.length}>{loading ? 'Preparando pagamento...' : `Pagar ${money(total)}`}</button>
           <p className="secure-note">🔒 A confirmação só é concluída após a validação do pagamento.</p>
         </div>
       </section>
       <footer><Logo /><p>Escola Piaget • (86) 9 9462-5073 • piaget.ejp@gmail.com</p><a href="/admin">Acesso da secretaria</a></footer>
+      {students.length > 0 && <div className="mobile-float-bar"><div><strong>{students.length} aluno{students.length === 1 ? '' : 's'}</strong><span>{money(total)}</span></div><a className="primary button-link" href="#confirmar">Continuar</a></div>}
     </main>
   )
 }
@@ -224,48 +259,158 @@ async function imageToDataUrl(url) {
   })
 }
 
+async function makeEmojiBadge(emoji, background = '#FFF3E5') {
+  const canvas = document.createElement('canvas')
+  canvas.width = 120
+  canvas.height = 120
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = background
+  ctx.beginPath()
+  ctx.arc(60, 60, 54, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.font = '58px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, 60, 63)
+  return canvas.toDataURL('image/png')
+}
+
+function drawWrappedText(doc, text, x, y, width, lineHeight = 4.7) {
+  const lines = doc.splitTextToSize(text, width)
+  doc.text(lines, x, y)
+  return y + (lines.length * lineHeight)
+}
+
 async function generateOrientationPdf(order) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   let logo = null
   try { logo = await imageToDataUrl('/logo-piaget.png') } catch {}
-  if (logo) doc.addImage(logo, 'PNG', 18, 12, 48, 14)
+
+  if (logo) doc.addImage(logo, 'PNG', 18, 12, 46, 13)
+
+  doc.setFillColor(11, 79, 162)
+  doc.roundedRect(18, 30, 174, 28, 4, 4, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(18)
+  doc.text('Participação confirmada!', 24, 41)
+  doc.setFontSize(10.5)
+  const subtitle = doc.splitTextToSize(`Gincana Piaget 2026 • ${EVENT.theme}`, 160)
+  doc.text(subtitle, 24, 48)
+
+  let y = 67
+  doc.setDrawColor(224, 231, 239)
+  doc.setFillColor(247, 250, 253)
+  doc.roundedRect(18, y, 174, 30, 4, 4, 'FD')
+  doc.setTextColor(23, 37, 54)
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Resumo da confirmação', 24, y + 8)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.8)
+  doc.text(`Responsável: ${order.responsibleName || '—'}`, 24, y + 16)
+  doc.text(`Data da Gincana: ${EVENT.date}`, 24, y + 23)
+  doc.text(`Local: ${EVENT.location}`, 95, y + 16)
+  doc.text(`Valor pago: ${money(order.total)}`, 95, y + 23)
+  y += 40
+
+  doc.setFont('helvetica', 'bold')
   doc.setTextColor(16, 58, 105)
-  doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.text('Gincana Piaget 2026', 18, 38)
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(70, 80, 95)
-  const theme = doc.splitTextToSize(EVENT.theme, 174); doc.text(theme, 18, 45)
-  let y = 58
-  doc.setFillColor(245, 248, 252); doc.roundedRect(18, y, 174, 24, 3, 3, 'F')
-  doc.setFont('helvetica', 'bold'); doc.setTextColor(22, 40, 60); doc.text(`Data: ${EVENT.date}`, 23, y + 8); doc.text(`Local: ${EVENT.location}`, 23, y + 16)
-  doc.text('Participação confirmada', 116, y + 8); doc.setFont('helvetica','normal'); doc.text(`Pagamento: ${money(order.total)}`, 116, y + 16)
-  y += 34
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(16,58,105); doc.text('Participantes confirmados', 18, y); y += 7
+  doc.setFontSize(13)
+  doc.text('Alunos confirmados', 18, y)
+  y += 8
+
   doc.setFontSize(9.5)
-  order.students.forEach((student, i) => {
-    doc.setFillColor(i % 2 ? 250 : 246, 248, 251); doc.roundedRect(18, y - 4.8, 174, 10, 1.5, 1.5, 'F')
-    doc.setTextColor(30, 40, 50); doc.setFont('helvetica','bold'); doc.text(student.name, 22, y + 1)
-    doc.setFont('helvetica','normal'); doc.text(`${student.grade} • Equipe ${student.team === 'AZUL' ? 'Azul' : 'Laranja'}`, 138, y + 1)
-    y += 12
+  for (let i = 0; i < order.students.length; i++) {
+    const student = order.students[i]
+    if (y > 244) {
+      doc.addPage()
+      y = 20
+    }
+    doc.setFillColor(i % 2 ? 250 : 244, 247, 251)
+    doc.roundedRect(18, y - 4.5, 174, 12, 2.5, 2.5, 'F')
+    doc.setTextColor(23, 37, 54)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`${i + 1}. ${student.name}`, 22, y + 0.5)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`${student.grade} • Equipe ${student.team === 'AZUL' ? 'Azul' : 'Laranja'}`, 22, y + 6)
+    y += 14
+  }
+
+  y += 3
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(16, 58, 105)
+  doc.setFontSize(13)
+  doc.text('Programação do dia', 18, y)
+  y += 7
+  doc.setFontSize(9.5)
+  EVENT.schedule.forEach(([time, text]) => {
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(11, 79, 162)
+    doc.text(time, 18, y)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(37, 51, 66)
+    doc.text(text, 38, y)
+    y += 6
   })
-  y += 2
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(16,58,105); doc.text('Programação', 18, y); y += 7
-  doc.setFontSize(9.5); doc.setTextColor(30,40,50)
-  EVENT.schedule.forEach(([time, text]) => { doc.setFont('helvetica','bold'); doc.text(time, 18, y); doc.setFont('helvetica','normal'); doc.text(text, 39, y); y += 6 })
-  y += 2
-  if (y > 235) { doc.addPage(); y = 20 }
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(16,58,105); doc.text('Orientações importantes', 18, y); y += 8
-  const guides = [
-    ['Alimentação', 'Haverá venda de refrigerantes, salgados, bombons e lanches rápidos. Não haverá venda de almoço; cada participante deverá levar o seu.'],
-    ['Piscina', 'Leve roupa de banho, toalha e protetor solar para o momento de lazer e atividades aquáticas.'],
-    ['Estrutura', 'O espaço possui mesas e cadeiras em quantidade limitada. Recomendamos chegar cedo.'],
-    ['Conforto', 'Leve água, cooler ou garrafa térmica com suas bebidas e os itens pessoais necessários para o dia.']
+
+  doc.addPage()
+  if (logo) doc.addImage(logo, 'PNG', 18, 12, 44, 12)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(16, 58, 105)
+  doc.setFontSize(18)
+  doc.text('Informações importantes', 18, 32)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(84, 98, 114)
+  doc.setFontSize(10)
+  doc.text('Salve este PDF no celular para consultar as orientações quando precisar.', 18, 39)
+
+  const cardWidth = 83
+  const cardHeight = 56
+  const positions = [
+    [18, 49],
+    [109, 49],
+    [18, 112],
+    [109, 112]
   ]
-  doc.setFontSize(9.5)
-  guides.forEach(([title, text]) => {
-    doc.setFont('helvetica','bold'); doc.setTextColor(30,40,50); doc.text(title, 18, y); y += 5
-    doc.setFont('helvetica','normal'); const lines = doc.splitTextToSize(text, 174); doc.text(lines, 18, y); y += lines.length * 4.4 + 5
-  })
-  doc.setDrawColor(220); doc.line(18, 278, 192, 278)
-  doc.setFontSize(8.5); doc.setTextColor(95); doc.text('Escola Piaget • (86) 9 9462-5073 • piaget.ejp@gmail.com', 18, 285)
+
+  for (let i = 0; i < GUIDE_ITEMS.length; i++) {
+    const item = GUIDE_ITEMS[i]
+    const [x, top] = positions[i]
+    const emojiBadge = await makeEmojiBadge(item.emoji, item.light)
+    doc.setDrawColor(224, 231, 239)
+    doc.setFillColor(255, 255, 255)
+    doc.roundedRect(x, top, cardWidth, cardHeight, 4, 4, 'FD')
+    doc.addImage(emojiBadge, 'PNG', x + 4, top + 4, 16, 16)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(23, 37, 54)
+    doc.setFontSize(11)
+    doc.text(item.title, x + 22, top + 11)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(92, 107, 123)
+    doc.setFontSize(8.8)
+    drawWrappedText(doc, item.text, x + 6, top + 25, cardWidth - 12, 4.1)
+  }
+
+  doc.setFillColor(244, 247, 251)
+  doc.roundedRect(18, 177, 174, 50, 4, 4, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(16, 58, 105)
+  doc.setFontSize(12)
+  doc.text('Lembretes finais', 24, 188)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.6)
+  doc.setTextColor(73, 89, 104)
+  let noteY = 197
+  noteY = drawWrappedText(doc, '• Chegue cedo para aproveitar melhor a estrutura e garantir mais conforto para o aluno.', 24, noteY, 160, 4.7) + 2
+  noteY = drawWrappedText(doc, '• Em caso de dúvida, a Escola Piaget está disponível pelo WhatsApp (86) 9 9462-5073.', 24, noteY, 160, 4.7) + 2
+  drawWrappedText(doc, '• Este documento serve como confirmação informativa da participação e pode ser salvo offline no celular.', 24, noteY, 160, 4.7)
+
+  doc.setDrawColor(220)
+  doc.line(18, 278, 192, 278)
+  doc.setFontSize(8.5)
+  doc.setTextColor(95)
+  doc.text('Escola Piaget • (86) 9 9462-5073 • piaget.ejp@gmail.com', 18, 285)
   doc.save(`Gincana-Piaget-2026-${order.students[0]?.name?.split(' ')[0] || 'confirmacao'}.pdf`)
 }
 
@@ -364,6 +509,53 @@ function AdminSale({ user, afterSave }) {
   return <div className="admin-panel-card"><div className="panel-title"><div><span>PDV da Secretaria</span><h2>Nova confirmação presencial</h2></div><div className="price-chip">{money(students.length*STUDENT_PRICE)}</div></div><StudentPicker selected={students} onAdd={add} compact/><SelectedStudents students={students} onRemove={id=>setStudents(v=>v.filter(s=>s.id!==id))}/><div className="responsible-grid"><div className="field"><label>Responsável</label><input value={responsibleName} onChange={e=>setResponsibleName(e.target.value)}/></div><div className="field"><label>WhatsApp</label><input value={responsiblePhone} onChange={e=>setResponsiblePhone(e.target.value)}/></div></div><div className="field"><label>Forma de pagamento</label><select value={mode} onChange={e=>setMode(e.target.value)}><option value="cash">Dinheiro</option><option value="external_pix">Pix externo/manual</option><option value="card_machine">Cartão na maquininha</option><option value="infinitepay">Gerar checkout InfinitePay</option><option value="other">Outro</option></select></div>{mode==='other'&&<div className="field"><label>Observação</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Descreva a forma de pagamento"/></div>}{message&&<div className={`alert ${message.type}`}>{message.text}</div>}<button className="primary wide" onClick={submit} disabled={loading}>{loading?'Processando...':mode==='infinitepay'?'Gerar link de pagamento':'Registrar pagamento e confirmar'}</button>{checkoutUrl&&<div className="qr-box"><QRCodeSVG value={checkoutUrl} size={190}/><div><strong>Checkout InfinitePay</strong><p>O responsável pode escanear o QR Code ou abrir o link.</p><div className="inline-actions"><a className="primary button-link" href={checkoutUrl} target="_blank" rel="noreferrer">Abrir checkout</a><button className="secondary" onClick={()=>navigator.clipboard.writeText(checkoutUrl)}>Copiar link</button></div></div></div>}</div>
 }
 
+function AdminTools({ user }) {
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState(null)
+
+  const resetAll = async () => {
+    const ok = window.confirm('Isso vai apagar os registros de participantes, pagamentos e eventos da Gincana 2026. Deseja continuar?')
+    if (!ok) return
+    const typed = window.prompt('Digite RESETAR GINCANA para confirmar:')
+    if (typed !== 'RESETAR GINCANA') return setMessage({ type: 'error', text: 'Confirmação inválida. Nada foi apagado.' })
+    setLoading(true)
+    setMessage(null)
+    try {
+      const token = await user.getIdToken()
+      const response = await fetch('/api/admin-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ confirmation: typed })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Não foi possível resetar o sistema.')
+      setMessage({ type: 'success', text: `Sistema resetado com sucesso. Participantes: ${data.deletedParticipants}, pagamentos: ${data.deletedOrders}, eventos: ${data.deletedEvents}.` })
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message || 'Falha ao resetar o sistema.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="admin-panel-card">
+      <div className="panel-title">
+        <div>
+          <span>Ferramentas</span>
+          <h2>Resetar dados de teste</h2>
+        </div>
+      </div>
+      <p className="panel-description">Use esta opção somente antes de liberar o sistema aos pais. Ela remove todos os registros de pagamentos, participantes confirmados e eventos financeiros da Gincana 2026.</p>
+      <div className="warning-block">
+        <strong>Atenção</strong>
+        <p>Essa ação é irreversível no sistema e deve ser usada apenas para limpar a base antes da abertura oficial.</p>
+      </div>
+      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+      <button className="danger-button" onClick={resetAll} disabled={loading}>{loading ? 'Resetando...' : 'Resetar sistema da Gincana'}</button>
+    </div>
+  )
+}
+
 function AdminApp() {
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
@@ -405,11 +597,12 @@ function AdminApp() {
     const data=await response.json(); if(!response.ok) alert(data.error||'Erro ao cancelar')
   }
 
-  return <div className="admin-layout"><aside className="sidebar"><Logo/><div className="sidebar-title">Gincana 2026</div><nav><button className={tab==='dashboard'?'active':''} onClick={()=>setTab('dashboard')}>Visão geral</button><button className={tab==='sale'?'active':''} onClick={()=>setTab('sale')}>Nova confirmação</button><button className={tab==='participants'?'active':''} onClick={()=>setTab('participants')}>Participantes</button><button className={tab==='orders'?'active':''} onClick={()=>setTab('orders')}>Pagamentos</button></nav><div className="sidebar-user"><span>{user.email}</span><button onClick={()=>signOut(auth)}>Sair</button></div></aside><main className="admin-main"><header className="admin-header"><div><span className="eyebrow">Secretaria • Escola Piaget</span><h1>{tab==='dashboard'?'Painel da Gincana':tab==='sale'?'Confirmar participação':tab==='participants'?'Controle de participantes':'Controle de pagamentos'}</h1></div><div className="header-date">10 OUT 2026</div></header>
+  return <div className="admin-layout"><aside className="sidebar"><Logo/><div className="sidebar-title">Gincana 2026</div><nav><button className={tab==='dashboard'?'active':''} onClick={()=>setTab('dashboard')}>Visão geral</button><button className={tab==='sale'?'active':''} onClick={()=>setTab('sale')}>Nova confirmação</button><button className={tab==='participants'?'active':''} onClick={()=>setTab('participants')}>Participantes</button><button className={tab==='orders'?'active':''} onClick={()=>setTab('orders')}>Pagamentos</button><button className={tab==='tools'?'active':''} onClick={()=>setTab('tools')}>Ferramentas</button></nav><div className="sidebar-user"><span>{user.email}</span><button onClick={()=>signOut(auth)}>Sair</button></div></aside><main className="admin-main"><header className="admin-header"><div><span className="eyebrow">Secretaria • Escola Piaget</span><h1>{tab==='dashboard'?'Painel da Gincana':tab==='sale'?'Confirmar participação':tab==='participants'?'Controle de participantes':tab==='orders'?'Controle de pagamentos':'Ferramentas do sistema'}</h1></div><div className="header-date">10 OUT 2026</div></header>
   {tab==='dashboard'&&<><div className="metrics"><div className="metric primary-metric"><span>Participação confirmada</span><strong>{confirmed.length}<small>/81</small></strong><div className="progress"><i style={{width:`${confirmed.length/81*100}%`}}/></div><b>{(confirmed.length/81*100).toFixed(1).replace('.',',')}%</b></div><div className="metric"><span>Arrecadação confirmada</span><strong>{money(revenue)}</strong><small>{orders.filter(o=>o.status==='paid').length} pagamentos</small></div><div className="metric"><span>Em pagamento</span><strong>{pending.length}</strong><small>reservas de checkout ativas</small></div><div className="metric"><span>Ainda não confirmados</span><strong>{81-confirmed.length}</strong><small>alunos</small></div></div><div className="dashboard-grid"><div className="admin-panel-card"><div className="panel-title"><div><span>Participação</span><h2>Por turma</h2></div></div>{byGrade.map(g=><div className="grade-progress" key={g.grade}><div><strong>{g.grade}</strong><span>{g.ok} de {g.total}</span></div><div className="progress"><i style={{width:`${g.pct}%`}}/></div><b>{g.pct}%</b></div>)}</div><div className="admin-panel-card"><div className="panel-title"><div><span>Últimos registros</span><h2>Pagamentos recentes</h2></div><button className="text-button" onClick={()=>setTab('orders')}>Ver todos</button></div><div className="recent-list">{orders.slice(0,6).map(o=><div key={o.id}><div><strong>{o.responsibleName}</strong><span>{o.students?.map(s=>s.name.split(' ')[0]).join(', ')}</span></div><div><strong>{money(o.total)}</strong><span>{o.status==='paid'?'Confirmado':o.status}</span></div></div>)}{!orders.length&&<p className="empty-state">Nenhum pagamento registrado ainda.</p>}</div></div></div></>}
   {tab==='sale'&&<AdminSale user={user}/>} 
   {tab==='participants'&&<div className="admin-panel-card"><div className="table-filters"><input placeholder="Buscar aluno..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={gradeFilter} onChange={e=>setGradeFilter(e.target.value)}><option value="all">Todas as turmas</option>{GRADES.map(g=><option key={g}>{g}</option>)}</select><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Todos os status</option><option value="confirmed">Confirmados</option><option value="pending_checkout">Em pagamento</option><option value="available">Não confirmados</option><option value="cancelled">Cancelados</option></select></div><div className="table-wrap"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Equipe</th><th>Status</th><th>Pagamento</th><th>Data</th><th></th></tr></thead><tbody>{filtered.map(s=><tr key={s.id}><td><strong>{s.name}</strong><small>Matrícula {s.id}</small></td><td>{s.grade}</td><td><TeamBadge team={s.team}/></td><td><span className={`status ${s.status}`}>{s.status==='confirmed'?'Confirmado':s.status==='pending_checkout'?'Em pagamento':s.status==='cancelled'?'Cancelado':'Não confirmado'}</span></td><td>{methodLabel(s.record?.paymentMethod)}</td><td>{fmtDate(s.record?.confirmedAt)}</td><td>{s.status==='confirmed'&&<button className="danger-link" onClick={()=>cancel(s)}>Cancelar</button>}</td></tr>)}</tbody></table></div></div>}
   {tab==='orders'&&<div className="admin-panel-card"><div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Responsável</th><th>Alunos</th><th>Origem</th><th>Forma</th><th>Status</th><th>Valor</th><th>Data</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td><code>{o.id}</code></td><td>{o.responsibleName}<small>{o.responsiblePhone}</small></td><td>{o.students?.map(s=><span className="mini-student" key={s.id}>{s.name}</span>)}</td><td>{originLabel(o.origin)}</td><td>{methodLabel(o.captureMethod||o.paymentMethod)}</td><td><span className={`status ${o.status}`}>{o.status==='paid'?'Pago':o.status==='pending'?'Pendente':o.status==='paid_conflict'?'Conflito':o.status}</span></td><td><strong>{money(o.total)}</strong></td><td>{fmtDate(o.createdAt)}</td></tr>)}</tbody></table></div></div>}
+  {tab==='tools'&&<AdminTools user={user}/>} 
   </main></div>
 }
 
