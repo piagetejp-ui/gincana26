@@ -1,7 +1,7 @@
 {
-  "name": "gincana-piaget-2026",
+  "name": "gincana-piaget-2026-pagamentos",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,11 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "firebase": "latest",
-    "vite": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "firebase": "^12.3.0",
+    "firebase-admin": "^13.5.0",
+    "jspdf": "^3.0.2",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^7.1.7"
+  }
 }

@@ -2,12 +2,33 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Sistema antigo do São João — preservado.
     match /sao_joao_fe_2026_pedidos/{document} {
       allow read, write: if request.auth != null;
     }
 
+    // Sistema do sorteio da Gincana — preservado.
     match /gincana2026/{document} {
       allow read, write: if request.auth != null;
+    }
+
+    // Confirmações e pagamentos da Gincana.
+    // O painel autenticado pode ler; as gravações são feitas pelas APIs
+    // server-side com Firebase Admin, que não depende destas regras.
+    match /gincana2026_participantes/{document} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /gincana2026_pagamentos/{document} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /gincana2026_eventos_pagamento/{document} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }

@@ -1,68 +1,106 @@
-# Gincana Piaget 2026 — RC5 PDF Oficial
+# Gincana Piaget 2026 — Confirmação e Pagamentos
 
-Sistema de chamada e apresentação das equipes da Gincana 2026 da Escola Piaget.
+Sistema independente do sorteio da Gincana, preparado para Vercel + Firebase + Checkout Integrado InfinitePay.
 
-## Base
-- 81 alunos ativos
-- 41 integrantes cadastrados na Equipe Azul
-- 40 integrantes cadastrados na Equipe Laranja
-- Chamada sem repetição
-- Roleta visual com 8 fatias
+## O que já está implementado
 
-## Firebase
-Projeto: `saojoao26-fc92c`
+### Página pública
+- Apresentação da Gincana Piaget 2026.
+- Data: 10/10/2026.
+- Local: Clube ARJOB.
+- Programação e orientações do comunicado.
+- Base fechada com os 81 alunos validados do 6º ao 9º ano.
+- Escolha primeiro da turma e depois busca dinâmica pelo nome.
+- Permite adicionar mais de um aluno/irmão no mesmo pagamento.
+- R$ 36,00 por aluno, calculado no servidor.
+- Checkout InfinitePay com um item individual por aluno.
+- Retorno de pagamento com validação real via `payment_check`.
+- Webhook com nova validação na InfinitePay antes de confirmar.
+- Após confirmação, botão para baixar as orientações da Gincana em PDF.
 
-A coleção usada é `gincana2026`.
+### Área da Secretaria (`/admin`)
+- Login pelo Firebase Authentication (Email/Senha).
+- Indicador de participantes confirmados: X/81 e percentual.
+- Arrecadação confirmada.
+- Indicadores por turma.
+- Relação completa de alunos com status.
+- Filtro por turma, status e busca por nome.
+- Mini PDV para confirmação presencial.
+- Formas presenciais: dinheiro, Pix externo, cartão na maquininha e outro.
+- Possibilidade de gerar checkout InfinitePay pela própria Secretaria.
+- QR Code e link do checkout quando gerado pela Secretaria.
+- Relação de pedidos/pagamentos.
+- Cancelamento administrativo com motivo, preservando o histórico financeiro.
 
-Documentos principais:
-- `state`: estado corrente da sessão
-- `audit_<sessao>_<ordem>`: registro individual de auditoria de cada sorteio
-- `backup_<sessao>`: backup de uma sessão encerrada por reset
-- `backup_latest`: último backup
+## Estrutura do Firestore
 
-## Área protegida
-A área administrativa exige reautenticação por senha e reúne:
-1. Auditoria do sorteio.
-2. Resultado oficial.
-3. Divisão oficial cadastrada.
-4. Reset protegido.
+- `gincana2026_participantes/{matricula}`
+- `gincana2026_pagamentos/{orderNsu}`
+- `gincana2026_eventos_pagamento/{evento}`
 
-## RC5 — impressão e PDFs oficiais
-A alteração desta versão é restrita à estrutura de impressão/PDF. A lógica do sorteio e do Firebase permanece a mesma da RC4.
+O nome do aluno não é usado como chave. A matrícula oficial é o identificador de cada participante.
 
-### Correção da impressão
-A impressão não usa mais `window.open`, evitando bloqueio de pop-up. O documento é preparado em um iframe interno e abre diretamente o diálogo do navegador para **Imprimir / Salvar como PDF**.
+## Proteção contra pagamento duplicado
 
-### Resultado oficial
-- 2 páginas A4 retrato, uma por equipe.
-- Equipe Azul e Equipe Laranja com identidade visual própria.
-- Ordem dentro da equipe, ordem geral do sorteio, horário com segundos, nome completo e turma.
-- Sessão, início, conclusão e quantidade de integrantes no cabeçalho.
-- Logomarca e identificação institucional.
-- Formato pensado para impressão e exposição em mural.
+Ao gerar um checkout, os alunos selecionados ficam reservados por 20 minutos. Durante esse período, outro checkout ou venda presencial para o mesmo aluno é bloqueado. Após o pagamento, o status passa para `confirmed`.
 
-### Auditoria oficial
-- 2 páginas A4 retrato.
-- 81 registros em ordem cronológica.
-- Ordem, horário, aluno, turma e equipe.
-- Equipes destacadas discretamente por cor.
-- Cabeçalho repetido em cada página e paginação no rodapé.
+O webhook da InfinitePay não é aceito cegamente: o sistema consulta o endpoint `payment_check` e confere se o valor-base do pedido corresponde ao valor esperado antes de confirmar os alunos.
 
-### Divisão oficial cadastrada
-- 2 páginas A4 retrato, uma por equipe.
-- Organização por turma.
-- Layout compacto, sem sobreposições e com todos os 81 alunos.
+## InfinitePay
 
-## Verificação visual
-Os três modelos foram renderizados em A4 com a base completa (41 Azul / 40 Laranja). Resultado: 2 páginas para cada relatório, sem textos cortados, sem sobreposição com rodapé e sem quebra de nomes para fora das tabelas.
+Handle configurado: `piaget`.
 
-## Execução
-```bash
-npm install
-npm run dev
-```
+Valor unitário enviado para a API: `3600` centavos.
 
-Build:
-```bash
-npm run build
-```
+Endpoints usados:
+- `POST https://api.checkout.infinitepay.io/links`
+- `POST https://api.checkout.infinitepay.io/payment_check`
+
+### Repasse das taxas
+
+O payload do Checkout Integrado mantém o preço-base de R$ 36,00 por aluno. O repasse das taxas/parcelamento deve estar configurado no Checkout Integrado da conta InfinitePay. A documentação atual permite cartão em até 12x e Pix; o responsável escolhe a forma disponível no checkout.
+
+Antes de colocar em produção, confirme no App/Web InfinitePay que o **Checkout Integrado está habilitado** e que a configuração de **Repasse de taxas** está ativa.
+
+## Firebase Authentication
+
+O painel `/admin` usa os usuários Email/Senha já cadastrados no projeto Firebase `saojoao26-fc92c`.
+
+Em Authentication > Settings > Authorized domains, adicione o domínio final da Vercel.
+
+## Variáveis de ambiente da Vercel
+
+Copie `.env.example` e configure na Vercel:
+
+- `SITE_URL`
+- `INFINITEPAY_HANDLE=piaget`
+- `FIREBASE_PROJECT_ID=saojoao26-fc92c`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+
+A chave privada deve ficar somente nas variáveis da Vercel. Não coloque o JSON de Service Account dentro do GitHub.
+
+## Regras do Firestore
+
+Use o arquivo `firestore.rules`. Ele preserva as regras existentes do São João e do sistema de sorteio e adiciona leitura autenticada para as três novas coleções. As gravações do sistema de pagamento acontecem pelas APIs com Firebase Admin.
+
+## Deploy
+
+1. Crie um repositório separado, por exemplo `gincana26-pagamentos`.
+2. Envie todos os arquivos deste pacote.
+3. Crie um novo projeto na Vercel apontando para o repositório.
+4. Configure as variáveis de ambiente.
+5. Publique as regras de `firestore.rules` no Firebase.
+6. Adicione o domínio final em Firebase Authentication > Authorized domains.
+7. Confira a configuração de Checkout Integrado / repasse de taxas na InfinitePay.
+8. Faça um pagamento de teste e confira:
+   - pedido pendente;
+   - retorno do checkout;
+   - webhook;
+   - aluno como confirmado;
+   - percentual do painel;
+   - PDF de orientações.
+
+## Observação importante sobre vendas presenciais
+
+`Cancelar confirmação` no painel apenas cancela a participação no sistema. Essa ação **não estorna** cartão, Pix ou qualquer recebimento financeiro. O motivo fica registrado no histórico para auditoria.
