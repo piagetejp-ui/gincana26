@@ -104,3 +104,10 @@ Use o arquivo `firestore.rules`. Ele preserva as regras existentes do São João
 ## Observação importante sobre vendas presenciais
 
 `Cancelar confirmação` no painel apenas cancela a participação no sistema. Essa ação **não estorna** cartão, Pix ou qualquer recebimento financeiro. O motivo fica registrado no histórico para auditoria.
+
+## V3 — PDF pela Secretaria
+
+- Ferramentas > **Gerar PDF de confirmação teste** gera um PDF fictício sem criar pedido ou pagamento.
+- Em **Participantes**, alunos confirmados exibem as ações **PDF**, **WhatsApp** e **Cancelar**.
+- **PDF** gera uma confirmação individual com as orientações da Gincana.
+- **WhatsApp** abre a conversa do responsável com uma mensagem pronta. O PDF deve ser anexado manualmente por segurança do navegador.

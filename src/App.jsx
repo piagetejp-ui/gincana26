@@ -414,6 +414,26 @@ async function generateOrientationPdf(order) {
   doc.save(`Gincana-Piaget-2026-${order.students[0]?.name?.split(' ')[0] || 'confirmacao'}.pdf`)
 }
 
+function buildSingleStudentPdfOrder(student, orders = []) {
+  const payment = orders.find(order => order.id === student.record?.orderNsu)
+  return {
+    responsibleName: student.record?.responsibleName || payment?.responsibleName || 'Responsável',
+    total: Number(student.record?.amount || STUDENT_PRICE),
+    captureMethod: student.record?.paymentMethod || payment?.captureMethod || payment?.paymentMethod || null,
+    students: [{ id: student.id, name: student.name, grade: student.grade, team: student.team }]
+  }
+}
+
+function generateTestConfirmationPdf() {
+  const example = STUDENTS[0]
+  return generateOrientationPdf({
+    responsibleName: 'Responsável de Teste',
+    total: STUDENT_PRICE,
+    captureMethod: 'pix',
+    students: [{ id: example.id, name: example.name, grade: example.grade, team: example.team }]
+  })
+}
+
 function ReturnApp() {
   const params = new URLSearchParams(window.location.search)
   const [status, setStatus] = useState('checking')
@@ -551,7 +571,11 @@ function AdminTools({ user }) {
         <p>Essa ação é irreversível no sistema e deve ser usada apenas para limpar a base antes da abertura oficial.</p>
       </div>
       {message && <div className={`alert ${message.type}`}>{message.text}</div>}
-      <button className="danger-button" onClick={resetAll} disabled={loading}>{loading ? 'Resetando...' : 'Resetar sistema da Gincana'}</button>
+      <div className="tool-actions">
+        <button className="secondary" onClick={generateTestConfirmationPdf}>Gerar PDF de confirmação teste</button>
+        <button className="danger-button" onClick={resetAll} disabled={loading}>{loading ? 'Resetando...' : 'Resetar sistema da Gincana'}</button>
+      </div>
+      <p className="tool-hint">O PDF de teste usa um aluno fictício da base e não cria pagamento nem altera nenhum registro.</p>
     </div>
   )
 }
@@ -597,10 +621,26 @@ function AdminApp() {
     const data=await response.json(); if(!response.ok) alert(data.error||'Erro ao cancelar')
   }
 
+  const downloadStudentPdf = student => {
+    generateOrientationPdf(buildSingleStudentPdfOrder(student, orders))
+  }
+
+  const openStudentWhatsApp = student => {
+    const rawPhone = String(student.record?.responsiblePhone || '').replace(/\D/g, '')
+    if (!rawPhone) {
+      window.alert('Este registro não possui WhatsApp do responsável.')
+      return
+    }
+    const phone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`
+    const firstName = student.name.split(' ')[0]
+    const text = encodeURIComponent(`Olá! Segue a confirmação e as orientações da Gincana Piaget 2026 de ${firstName}. Vou anexar o PDF nesta conversa.`)
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank', 'noopener,noreferrer')
+  }
+
   return <div className="admin-layout"><aside className="sidebar"><Logo/><div className="sidebar-title">Gincana 2026</div><nav><button className={tab==='dashboard'?'active':''} onClick={()=>setTab('dashboard')}>Visão geral</button><button className={tab==='sale'?'active':''} onClick={()=>setTab('sale')}>Nova confirmação</button><button className={tab==='participants'?'active':''} onClick={()=>setTab('participants')}>Participantes</button><button className={tab==='orders'?'active':''} onClick={()=>setTab('orders')}>Pagamentos</button><button className={tab==='tools'?'active':''} onClick={()=>setTab('tools')}>Ferramentas</button></nav><div className="sidebar-user"><span>{user.email}</span><button onClick={()=>signOut(auth)}>Sair</button></div></aside><main className="admin-main"><header className="admin-header"><div><span className="eyebrow">Secretaria • Escola Piaget</span><h1>{tab==='dashboard'?'Painel da Gincana':tab==='sale'?'Confirmar participação':tab==='participants'?'Controle de participantes':tab==='orders'?'Controle de pagamentos':'Ferramentas do sistema'}</h1></div><div className="header-date">10 OUT 2026</div></header>
   {tab==='dashboard'&&<><div className="metrics"><div className="metric primary-metric"><span>Participação confirmada</span><strong>{confirmed.length}<small>/81</small></strong><div className="progress"><i style={{width:`${confirmed.length/81*100}%`}}/></div><b>{(confirmed.length/81*100).toFixed(1).replace('.',',')}%</b></div><div className="metric"><span>Arrecadação confirmada</span><strong>{money(revenue)}</strong><small>{orders.filter(o=>o.status==='paid').length} pagamentos</small></div><div className="metric"><span>Em pagamento</span><strong>{pending.length}</strong><small>reservas de checkout ativas</small></div><div className="metric"><span>Ainda não confirmados</span><strong>{81-confirmed.length}</strong><small>alunos</small></div></div><div className="dashboard-grid"><div className="admin-panel-card"><div className="panel-title"><div><span>Participação</span><h2>Por turma</h2></div></div>{byGrade.map(g=><div className="grade-progress" key={g.grade}><div><strong>{g.grade}</strong><span>{g.ok} de {g.total}</span></div><div className="progress"><i style={{width:`${g.pct}%`}}/></div><b>{g.pct}%</b></div>)}</div><div className="admin-panel-card"><div className="panel-title"><div><span>Últimos registros</span><h2>Pagamentos recentes</h2></div><button className="text-button" onClick={()=>setTab('orders')}>Ver todos</button></div><div className="recent-list">{orders.slice(0,6).map(o=><div key={o.id}><div><strong>{o.responsibleName}</strong><span>{o.students?.map(s=>s.name.split(' ')[0]).join(', ')}</span></div><div><strong>{money(o.total)}</strong><span>{o.status==='paid'?'Confirmado':o.status}</span></div></div>)}{!orders.length&&<p className="empty-state">Nenhum pagamento registrado ainda.</p>}</div></div></div></>}
   {tab==='sale'&&<AdminSale user={user}/>} 
-  {tab==='participants'&&<div className="admin-panel-card"><div className="table-filters"><input placeholder="Buscar aluno..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={gradeFilter} onChange={e=>setGradeFilter(e.target.value)}><option value="all">Todas as turmas</option>{GRADES.map(g=><option key={g}>{g}</option>)}</select><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Todos os status</option><option value="confirmed">Confirmados</option><option value="pending_checkout">Em pagamento</option><option value="available">Não confirmados</option><option value="cancelled">Cancelados</option></select></div><div className="table-wrap"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Equipe</th><th>Status</th><th>Pagamento</th><th>Data</th><th></th></tr></thead><tbody>{filtered.map(s=><tr key={s.id}><td><strong>{s.name}</strong><small>Matrícula {s.id}</small></td><td>{s.grade}</td><td><TeamBadge team={s.team}/></td><td><span className={`status ${s.status}`}>{s.status==='confirmed'?'Confirmado':s.status==='pending_checkout'?'Em pagamento':s.status==='cancelled'?'Cancelado':'Não confirmado'}</span></td><td>{methodLabel(s.record?.paymentMethod)}</td><td>{fmtDate(s.record?.confirmedAt)}</td><td>{s.status==='confirmed'&&<button className="danger-link" onClick={()=>cancel(s)}>Cancelar</button>}</td></tr>)}</tbody></table></div></div>}
+  {tab==='participants'&&<div className="admin-panel-card"><div className="table-filters"><input placeholder="Buscar aluno..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={gradeFilter} onChange={e=>setGradeFilter(e.target.value)}><option value="all">Todas as turmas</option>{GRADES.map(g=><option key={g}>{g}</option>)}</select><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Todos os status</option><option value="confirmed">Confirmados</option><option value="pending_checkout">Em pagamento</option><option value="available">Não confirmados</option><option value="cancelled">Cancelados</option></select></div><div className="table-wrap"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Equipe</th><th>Status</th><th>Pagamento</th><th>Data</th><th>Ações</th></tr></thead><tbody>{filtered.map(s=><tr key={s.id}><td><strong>{s.name}</strong><small>Matrícula {s.id}</small></td><td>{s.grade}</td><td><TeamBadge team={s.team}/></td><td><span className={`status ${s.status}`}>{s.status==='confirmed'?'Confirmado':s.status==='pending_checkout'?'Em pagamento':s.status==='cancelled'?'Cancelado':'Não confirmado'}</span></td><td>{methodLabel(s.record?.paymentMethod)}</td><td>{fmtDate(s.record?.confirmedAt)}</td><td>{s.status==='confirmed'&&<div className="row-actions"><button className="action-link" onClick={()=>downloadStudentPdf(s)}>PDF</button><button className="action-link whatsapp" onClick={()=>openStudentWhatsApp(s)}>WhatsApp</button><button className="danger-link" onClick={()=>cancel(s)}>Cancelar</button></div>}</td></tr>)}</tbody></table></div><p className="table-note">Para reenviar a confirmação: baixe o PDF do aluno e, em seguida, abra o WhatsApp. Por segurança do navegador, o anexo precisa ser selecionado manualmente na conversa.</p></div>}
   {tab==='orders'&&<div className="admin-panel-card"><div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Responsável</th><th>Alunos</th><th>Origem</th><th>Forma</th><th>Status</th><th>Valor</th><th>Data</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td><code>{o.id}</code></td><td>{o.responsibleName}<small>{o.responsiblePhone}</small></td><td>{o.students?.map(s=><span className="mini-student" key={s.id}>{s.name}</span>)}</td><td>{originLabel(o.origin)}</td><td>{methodLabel(o.captureMethod||o.paymentMethod)}</td><td><span className={`status ${o.status}`}>{o.status==='paid'?'Pago':o.status==='pending'?'Pendente':o.status==='paid_conflict'?'Conflito':o.status}</span></td><td><strong>{money(o.total)}</strong></td><td>{fmtDate(o.createdAt)}</td></tr>)}</tbody></table></div></div>}
   {tab==='tools'&&<AdminTools user={user}/>} 
   </main></div>
