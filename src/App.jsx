@@ -434,6 +434,96 @@ function generateTestConfirmationPdf() {
   })
 }
 
+
+async function generateTeamConfirmationPdf(confirmedStudents) {
+  const totalBlue = STUDENTS.filter(student => student.team === 'AZUL').length
+  const totalOrange = STUDENTS.filter(student => student.team === 'LARANJA').length
+  const confirmedBlue = confirmedStudents.filter(student => student.team === 'AZUL').length
+  const confirmedOrange = confirmedStudents.filter(student => student.team === 'LARANJA').length
+  const totalConfirmed = confirmedBlue + confirmedOrange
+  const pctBlue = totalBlue ? Math.round((confirmedBlue / totalBlue) * 100) : 0
+  const pctOrange = totalOrange ? Math.round((confirmedOrange / totalOrange) * 100) : 0
+  const pctTotal = STUDENTS.length ? Math.round((totalConfirmed / STUDENTS.length) * 100) : 0
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  let logo = null
+  try { logo = await imageToDataUrl('/logo-piaget.png') } catch {}
+
+  if (logo) doc.addImage(logo, 'PNG', 18, 12, 46, 13)
+
+  doc.setTextColor(16, 58, 105)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(19)
+  doc.text('Alunos confirmados', 18, 39)
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(92, 107, 123)
+  doc.text('Gincana Piaget 2026 • Resumo por equipe', 18, 46)
+
+  const emittedAt = new Date().toLocaleString('pt-BR')
+  doc.setFontSize(8.5)
+  doc.text(`Emitido em ${emittedAt}`, 18, 53)
+
+  const cardY = 68
+  const cardW = 82
+  const cardH = 62
+
+  doc.setFillColor(237, 245, 255)
+  doc.setDrawColor(177, 208, 242)
+  doc.roundedRect(18, cardY, cardW, cardH, 5, 5, 'FD')
+  doc.setFillColor(11, 79, 162)
+  doc.circle(31, cardY + 15, 6, 'F')
+  doc.setTextColor(11, 79, 162)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('Equipe Azul', 42, cardY + 18)
+  doc.setFontSize(26)
+  doc.text(`${confirmedBlue}/${totalBlue}`, 26, cardY + 40)
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(75, 98, 124)
+  doc.text(`${pctBlue}% dos alunos da equipe confirmados`, 26, cardY + 51)
+
+  doc.setFillColor(255, 244, 231)
+  doc.setDrawColor(246, 200, 151)
+  doc.roundedRect(110, cardY, cardW, cardH, 5, 5, 'FD')
+  doc.setFillColor(239, 127, 26)
+  doc.circle(123, cardY + 15, 6, 'F')
+  doc.setTextColor(183, 91, 10)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('Equipe Laranja', 134, cardY + 18)
+  doc.setFontSize(26)
+  doc.text(`${confirmedOrange}/${totalOrange}`, 118, cardY + 40)
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(112, 89, 66)
+  doc.text(`${pctOrange}% dos alunos da equipe confirmados`, 118, cardY + 51)
+
+  doc.setFillColor(247, 249, 252)
+  doc.setDrawColor(224, 231, 239)
+  doc.roundedRect(18, 143, 174, 44, 5, 5, 'FD')
+  doc.setTextColor(23, 37, 54)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('Total geral de confirmações', 26, 157)
+  doc.setFontSize(23)
+  doc.setTextColor(16, 58, 105)
+  doc.text(`${totalConfirmed}/${STUDENTS.length}`, 26, 174)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(92, 107, 123)
+  doc.text(`${pctTotal}% dos alunos confirmados para a Gincana`, 58, 174)
+
+  doc.setDrawColor(220)
+  doc.line(18, 278, 192, 278)
+  doc.setFontSize(8.5)
+  doc.setTextColor(95)
+  doc.text('Escola Piaget • Gincana Piaget 2026 • (86) 9 9462-5073', 18, 285)
+
+  doc.save('Gincana-Piaget-2026-Confirmados-por-Equipe.pdf')
+}
+
 function ReturnApp() {
   const params = new URLSearchParams(window.location.search)
   const [status, setStatus] = useState('checking')
@@ -612,6 +702,11 @@ function AdminApp() {
   const revenue = orders.filter(o=>o.status==='paid').reduce((sum,o)=>sum+Number(o.total||0),0)
   const filtered = enriched.filter(s => (statusFilter==='all'||s.status===statusFilter) && (gradeFilter==='all'||s.grade===gradeFilter) && normalize(s.name).includes(normalize(search)))
   const byGrade = GRADES.map(grade => { const total=STUDENTS.filter(s=>s.grade===grade).length; const ok=confirmed.filter(s=>s.grade===grade).length; return {grade,total,ok,pct:Math.round(ok/total*100)} })
+  const teamSummary = ['AZUL', 'LARANJA'].map(team => {
+    const total = STUDENTS.filter(s => s.team === team).length
+    const ok = confirmed.filter(s => s.team === team).length
+    return { team, total, ok, pct: total ? Math.round((ok / total) * 100) : 0 }
+  })
 
   const cancel = async student => {
     const reason = window.prompt(`Motivo do cancelamento de ${student.name}:`)
@@ -638,7 +733,14 @@ function AdminApp() {
   }
 
   return <div className="admin-layout"><aside className="sidebar"><Logo/><div className="sidebar-title">Gincana 2026</div><nav><button className={tab==='dashboard'?'active':''} onClick={()=>setTab('dashboard')}>Visão geral</button><button className={tab==='sale'?'active':''} onClick={()=>setTab('sale')}>Nova confirmação</button><button className={tab==='participants'?'active':''} onClick={()=>setTab('participants')}>Participantes</button><button className={tab==='orders'?'active':''} onClick={()=>setTab('orders')}>Pagamentos</button><button className={tab==='tools'?'active':''} onClick={()=>setTab('tools')}>Ferramentas</button></nav><div className="sidebar-user"><span>{user.email}</span><button onClick={()=>signOut(auth)}>Sair</button></div></aside><main className="admin-main"><header className="admin-header"><div><span className="eyebrow">Secretaria • Escola Piaget</span><h1>{tab==='dashboard'?'Painel da Gincana':tab==='sale'?'Confirmar participação':tab==='participants'?'Controle de participantes':tab==='orders'?'Controle de pagamentos':'Ferramentas do sistema'}</h1></div><div className="header-date">10 OUT 2026</div></header>
-  {tab==='dashboard'&&<><div className="metrics"><div className="metric primary-metric"><span>Participação confirmada</span><strong>{confirmed.length}<small>/81</small></strong><div className="progress"><i style={{width:`${confirmed.length/81*100}%`}}/></div><b>{(confirmed.length/81*100).toFixed(1).replace('.',',')}%</b></div><div className="metric"><span>Arrecadação confirmada</span><strong>{money(revenue)}</strong><small>{orders.filter(o=>o.status==='paid').length} pagamentos</small></div><div className="metric"><span>Em pagamento</span><strong>{pending.length}</strong><small>reservas de checkout ativas</small></div><div className="metric"><span>Ainda não confirmados</span><strong>{81-confirmed.length}</strong><small>alunos</small></div></div><div className="dashboard-grid"><div className="admin-panel-card"><div className="panel-title"><div><span>Participação</span><h2>Por turma</h2></div></div>{byGrade.map(g=><div className="grade-progress" key={g.grade}><div><strong>{g.grade}</strong><span>{g.ok} de {g.total}</span></div><div className="progress"><i style={{width:`${g.pct}%`}}/></div><b>{g.pct}%</b></div>)}</div><div className="admin-panel-card"><div className="panel-title"><div><span>Últimos registros</span><h2>Pagamentos recentes</h2></div><button className="text-button" onClick={()=>setTab('orders')}>Ver todos</button></div><div className="recent-list">{orders.slice(0,6).map(o=><div key={o.id}><div><strong>{o.responsibleName}</strong><span>{o.students?.map(s=>s.name.split(' ')[0]).join(', ')}</span></div><div><strong>{money(o.total)}</strong><span>{o.status==='paid'?'Confirmado':o.status}</span></div></div>)}{!orders.length&&<p className="empty-state">Nenhum pagamento registrado ainda.</p>}</div></div></div></>}
+  {tab==='dashboard'&&<>
+    <div className="metrics"><div className="metric primary-metric"><span>Participação confirmada</span><strong>{confirmed.length}<small>/81</small></strong><div className="progress"><i style={{width:`${confirmed.length/81*100}%`}}/></div><b>{(confirmed.length/81*100).toFixed(1).replace('.',',')}%</b></div><div className="metric"><span>Arrecadação confirmada</span><strong>{money(revenue)}</strong><small>{orders.filter(o=>o.status==='paid').length} pagamentos</small></div><div className="metric"><span>Em pagamento</span><strong>{pending.length}</strong><small>reservas de checkout ativas</small></div><div className="metric"><span>Ainda não confirmados</span><strong>{81-confirmed.length}</strong><small>alunos</small></div></div>
+    <div className="admin-panel-card team-summary-panel">
+      <div className="panel-title"><div><span>Equipes</span><h2>Alunos confirmados</h2><p className="panel-subtitle">Resumo de confirmações por equipe</p></div><button className="secondary print-team-button" onClick={()=>generateTeamConfirmationPdf(confirmed)}>Gerar PDF / imprimir</button></div>
+      <div className="team-summary-grid">{teamSummary.map(item=><div className={`team-summary-card ${item.team==='AZUL'?'blue':'orange'}`} key={item.team}><div className="team-summary-dot"/><div><span>{item.team==='AZUL'?'Equipe Azul':'Equipe Laranja'}</span><strong>{item.ok}<small>/{item.total}</small></strong><p>{item.pct}% confirmados</p></div></div>)}</div>
+    </div>
+    <div className="dashboard-grid"><div className="admin-panel-card"><div className="panel-title"><div><span>Participação</span><h2>Por turma</h2></div></div>{byGrade.map(g=><div className="grade-progress" key={g.grade}><div><strong>{g.grade}</strong><span>{g.ok} de {g.total}</span></div><div className="progress"><i style={{width:`${g.pct}%`}}/></div><b>{g.pct}%</b></div>)}</div><div className="admin-panel-card"><div className="panel-title"><div><span>Últimos registros</span><h2>Pagamentos recentes</h2></div><button className="text-button" onClick={()=>setTab('orders')}>Ver todos</button></div><div className="recent-list">{orders.slice(0,6).map(o=><div key={o.id}><div><strong>{o.responsibleName}</strong><span>{o.students?.map(s=>s.name.split(' ')[0]).join(', ')}</span></div><div><strong>{money(o.total)}</strong><span>{o.status==='paid'?'Confirmado':o.status}</span></div></div>)}{!orders.length&&<p className="empty-state">Nenhum pagamento registrado ainda.</p>}</div></div></div>
+  </>}
   {tab==='sale'&&<AdminSale user={user}/>} 
   {tab==='participants'&&<div className="admin-panel-card"><div className="table-filters"><input placeholder="Buscar aluno..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={gradeFilter} onChange={e=>setGradeFilter(e.target.value)}><option value="all">Todas as turmas</option>{GRADES.map(g=><option key={g}>{g}</option>)}</select><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Todos os status</option><option value="confirmed">Confirmados</option><option value="pending_checkout">Em pagamento</option><option value="available">Não confirmados</option><option value="cancelled">Cancelados</option></select></div><div className="table-wrap"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Equipe</th><th>Status</th><th>Pagamento</th><th>Data</th><th>Ações</th></tr></thead><tbody>{filtered.map(s=><tr key={s.id}><td><strong>{s.name}</strong><small>Matrícula {s.id}</small></td><td>{s.grade}</td><td><TeamBadge team={s.team}/></td><td><span className={`status ${s.status}`}>{s.status==='confirmed'?'Confirmado':s.status==='pending_checkout'?'Em pagamento':s.status==='cancelled'?'Cancelado':'Não confirmado'}</span></td><td>{methodLabel(s.record?.paymentMethod)}</td><td>{fmtDate(s.record?.confirmedAt)}</td><td>{s.status==='confirmed'&&<div className="row-actions"><button className="action-link" onClick={()=>downloadStudentPdf(s)}>PDF</button><button className="action-link whatsapp" onClick={()=>openStudentWhatsApp(s)}>WhatsApp</button><button className="danger-link" onClick={()=>cancel(s)}>Cancelar</button></div>}</td></tr>)}</tbody></table></div><p className="table-note">Para reenviar a confirmação: baixe o PDF do aluno e, em seguida, abra o WhatsApp. Por segurança do navegador, o anexo precisa ser selecionado manualmente na conversa.</p></div>}
   {tab==='orders'&&<div className="admin-panel-card"><div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Responsável</th><th>Alunos</th><th>Origem</th><th>Forma</th><th>Status</th><th>Valor</th><th>Data</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td><code>{o.id}</code></td><td>{o.responsibleName}<small>{o.responsiblePhone}</small></td><td>{o.students?.map(s=><span className="mini-student" key={s.id}>{s.name}</span>)}</td><td>{originLabel(o.origin)}</td><td>{methodLabel(o.captureMethod||o.paymentMethod)}</td><td><span className={`status ${o.status}`}>{o.status==='paid'?'Pago':o.status==='pending'?'Pendente':o.status==='paid_conflict'?'Conflito':o.status}</span></td><td><strong>{money(o.total)}</strong></td><td>{fmtDate(o.createdAt)}</td></tr>)}</tbody></table></div></div>}

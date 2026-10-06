@@ -111,3 +111,12 @@ Use o arquivo `firestore.rules`. Ele preserva as regras existentes do São João
 - Em **Participantes**, alunos confirmados exibem as ações **PDF**, **WhatsApp** e **Cancelar**.
 - **PDF** gera uma confirmação individual com as orientações da Gincana.
 - **WhatsApp** abre a conversa do responsável com uma mensagem pronta. O PDF deve ser anexado manualmente por segurança do navegador.
+
+## Atualização V4 — relatório por equipe
+
+Na Visão Geral da Secretaria foi adicionado um resumo de alunos confirmados por equipe, com os totais dinâmicos da base oficial:
+- Equipe Azul: confirmados / total da equipe.
+- Equipe Laranja: confirmados / total da equipe.
+- Total geral: confirmados / 81.
+
+O botão **Gerar PDF / imprimir** cria um PDF A4 simples e institucional, com data/hora de emissão, percentual por equipe e total geral.

@@ -47,3 +47,26 @@
   .tool-actions button{width:100%}
   .row-actions{min-width:210px}
 }
+
+.team-summary-panel{margin-bottom:16px}
+.panel-subtitle{margin:4px 0 0;color:var(--muted);font-size:12px}
+.team-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.team-summary-card{display:flex;align-items:center;gap:16px;border-radius:17px;padding:20px;border:1px solid var(--line)}
+.team-summary-card.blue{background:linear-gradient(135deg,#edf5ff,#f8fbff);border-color:#cfe1f5}
+.team-summary-card.orange{background:linear-gradient(135deg,#fff3e5,#fffaf4);border-color:#f4d8b8}
+.team-summary-dot{width:18px;height:18px;border-radius:50%;flex:0 0 18px}
+.team-summary-card.blue .team-summary-dot{background:#0b4fa2;box-shadow:0 0 0 6px rgba(11,79,162,.1)}
+.team-summary-card.orange .team-summary-dot{background:#ef7f1a;box-shadow:0 0 0 6px rgba(239,127,26,.12)}
+.team-summary-card span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;color:#6a7a8c}
+.team-summary-card strong{display:block;font-size:34px;letter-spacing:-.04em;margin:3px 0 0}
+.team-summary-card strong small{font-size:16px;color:#77879a;margin-left:2px}
+.team-summary-card p{margin:2px 0 0;color:var(--muted);font-size:12px}
+.team-summary-card.blue strong{color:#0b4fa2}
+.team-summary-card.orange strong{color:#b95c0c}
+.print-team-button{white-space:nowrap}
+
+@media(max-width:620px){
+  .team-summary-grid{grid-template-columns:1fr}
+  .team-summary-panel .panel-title{flex-direction:column;gap:14px}
+  .print-team-button{width:100%}
+}
