@@ -286,7 +286,7 @@ async function generateOrientationPdf(order) {
   let logo = null
   try { logo = await imageToDataUrl('/logo-piaget.png') } catch {}
 
-  if (logo) doc.addImage(logo, 'PNG', 18, 12, 46, 13)
+  if (logo) doc.addImage(logo, 'PNG', 18, 12, 32, 16.5)
 
   doc.setFillColor(11, 79, 162)
   doc.roundedRect(18, 30, 174, 28, 4, 4, 'F')
@@ -355,7 +355,7 @@ async function generateOrientationPdf(order) {
   })
 
   doc.addPage()
-  if (logo) doc.addImage(logo, 'PNG', 18, 12, 44, 12)
+  if (logo) doc.addImage(logo, 'PNG', 18, 12, 32, 16.5)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(16, 58, 105)
   doc.setFontSize(18)
@@ -449,7 +449,7 @@ async function generateTeamConfirmationPdf(confirmedStudents) {
   let logo = null
   try { logo = await imageToDataUrl('/logo-piaget.png') } catch {}
 
-  if (logo) doc.addImage(logo, 'PNG', 18, 12, 46, 13)
+  if (logo) doc.addImage(logo, 'PNG', 18, 12, 36, 18.5)
 
   doc.setTextColor(16, 58, 105)
   doc.setFont('helvetica', 'bold')
