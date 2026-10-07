@@ -120,3 +120,12 @@ Na Visão Geral da Secretaria foi adicionado um resumo de alunos confirmados por
 - Total geral: confirmados / 81.
 
 O botão **Gerar PDF / imprimir** cria um PDF A4 simples e institucional, com data/hora de emissão, percentual por equipe e total geral.
+
+## Prioridade da confirmação presencial
+
+A partir desta versão, a secretaria pode confirmar presencialmente um aluno mesmo que exista um checkout online ainda pendente.
+
+- A confirmação presencial passa a ser o registro válido do aluno.
+- O checkout online anterior é marcado como `superseded_by_manual` e deixa de reservar os alunos no sistema.
+- Se o link antigo for pago posteriormente na InfinitePay, o pagamento é registrado como `paid_conflict` e aparece no painel como duplicidade para conferência/estorno.
+- O pagamento duplicado não substitui a confirmação presencial existente.

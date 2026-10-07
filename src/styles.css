@@ -70,3 +70,14 @@
   .team-summary-panel .panel-title{flex-direction:column;gap:14px}
   .print-team-button{width:100%}
 }
+
+.status.superseded_by_manual{background:#eaf2fb;color:#3b638d}
+.duplicate-payment-alert{display:flex;align-items:center;justify-content:space-between;gap:18px;background:#fff2e8;border:1px solid #f1c59f;border-left:5px solid var(--orange);border-radius:15px;padding:16px 18px;margin-bottom:16px;color:#70441d}
+.duplicate-payment-alert strong{display:block;font-size:14px;color:#8b4b12;margin-bottom:4px}
+.duplicate-payment-alert p{margin:0;font-size:12px;line-height:1.55;color:#805a38}
+.duplicate-payment-alert.compact{margin-bottom:15px;align-items:flex-start}
+.refund-note{margin-top:6px!important;color:#9f3a70!important;max-width:190px;line-height:1.4}
+@media(max-width:620px){
+  .duplicate-payment-alert{flex-direction:column;align-items:stretch}
+  .duplicate-payment-alert .secondary{width:100%}
+}

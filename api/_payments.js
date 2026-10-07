@@ -40,15 +40,23 @@ export async function confirmOrderPaid({ orderNsu, transactionNsu, slug, receipt
     const participantRefs = order.studentIds.map(id => db.collection('gincana2026_participantes').doc(id))
     const participantSnaps = await Promise.all(participantRefs.map(ref => tx.get(ref)))
 
-    const conflict = participantSnaps.find(snap => {
+    const conflicts = participantSnaps.filter(snap => {
       if (!snap.exists) return false
       const data = snap.data()
       if (data.status === 'confirmed' && data.orderNsu !== orderNsu) return true
       if (data.status === 'pending_checkout' && data.orderNsu !== orderNsu && data.reservationExpiresAt?.toMillis?.() > Date.now()) return true
       return false
     })
+    const wasSupersededByManual = order.status === 'superseded_by_manual'
 
-    if (conflict) {
+    if (wasSupersededByManual || conflicts.length) {
+      const conflictStudentIds = [...new Set([
+        ...(order.supersededStudentIds || []),
+        ...conflicts.map(snap => snap.id)
+      ])]
+      const conflictReason = wasSupersededByManual ? 'manual_confirmation_has_priority' : 'participant_already_reserved_or_confirmed'
+      const conflictAt = FieldValue.serverTimestamp()
+
       tx.update(orderRef, {
         status: 'paid_conflict',
         transactionNsu,
@@ -57,15 +65,31 @@ export async function confirmOrderPaid({ orderNsu, transactionNsu, slug, receipt
         captureMethod: captureMethod || null,
         paidAmount: paidAmount ?? null,
         installments: installments ?? null,
-        paidAt: FieldValue.serverTimestamp(),
-        conflictStudentId: conflict.id,
-        updatedAt: FieldValue.serverTimestamp()
+        paidAt: conflictAt,
+        conflictStudentIds,
+        conflictReason,
+        requiresRefundReview: wasSupersededByManual,
+        updatedAt: conflictAt
       })
       tx.set(db.collection('gincana2026_eventos_pagamento').doc(), {
-        type: 'payment_conflict', orderNsu, studentId: conflict.id,
-        createdAt: FieldValue.serverTimestamp()
+        type: 'payment_conflict',
+        orderNsu,
+        studentIds: conflictStudentIds,
+        conflictReason,
+        requiresRefundReview: wasSupersededByManual,
+        createdAt: conflictAt
       })
-      return { status: 'paid_conflict', order: { ...order, orderNsu } }
+      return {
+        status: 'paid_conflict',
+        order: {
+          ...order,
+          orderNsu,
+          status: 'paid_conflict',
+          conflictStudentIds,
+          conflictReason,
+          requiresRefundReview: wasSupersededByManual
+        }
+      }
     }
 
     const confirmedAt = FieldValue.serverTimestamp()
