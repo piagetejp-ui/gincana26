@@ -81,3 +81,6 @@
   .duplicate-payment-alert{flex-direction:column;align-items:stretch}
   .duplicate-payment-alert .secondary{width:100%}
 }
+
+.payments-report-title{align-items:flex-start;gap:18px}.payments-report-title .panel-subtitle{max-width:650px}.payments-pdf-button{white-space:nowrap}
+@media(max-width:620px){.payments-report-title{flex-direction:column}.payments-pdf-button{width:100%}}

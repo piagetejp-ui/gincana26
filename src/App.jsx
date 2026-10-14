@@ -54,6 +54,10 @@ const GUIDE_ITEMS = [
 
 const money = cents => (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const studentMatchesQuery = (student, query) => {
+  const q = normalize(query)
+  return [student.name, ...(student.aliases || [])].some(value => normalize(value).includes(q))
+}
 const fmtDate = value => {
   if (!value) return '—'
   const date = value?.toDate ? value.toDate() : new Date(value)
@@ -76,7 +80,7 @@ function StudentPicker({ selected, onAdd, compact = false }) {
   const options = useMemo(() => {
     if (!grade || !query.trim()) return []
     const q = normalize(query.trim())
-    return STUDENTS.filter(s => s.grade === grade && !selected.some(x => x.id === s.id) && normalize(s.name).includes(q)).slice(0, 8)
+    return STUDENTS.filter(s => s.grade === grade && !selected.some(x => x.id === s.id) && studentMatchesQuery(s, q)).slice(0, 8)
   }, [grade, query, selected])
 
   const choose = student => {
@@ -524,6 +528,213 @@ async function generateTeamConfirmationPdf(confirmedStudents) {
   doc.save('Gincana-Piaget-2026-Confirmados-por-Equipe.pdf')
 }
 
+
+async function generateConfirmedPaymentsPdf(orders) {
+  const confirmedOrders = orders
+    .filter(order => order.status === 'paid')
+    .slice()
+    .sort((a, b) => {
+      const timeOf = value => {
+        if (!value) return 0
+        if (value?.toDate) return value.toDate().getTime()
+        if (value?.seconds) return Number(value.seconds) * 1000
+        const parsed = new Date(value).getTime()
+        return Number.isNaN(parsed) ? 0 : parsed
+      }
+      return timeOf(a.paidAt || a.createdAt) - timeOf(b.paidAt || b.createdAt)
+    })
+
+  const totalReceived = confirmedOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)
+  const totalStudents = confirmedOrders.reduce((sum, order) => sum + (order.students?.length || 0), 0)
+  const originTotals = {}
+  const methodTotals = {}
+
+  confirmedOrders.forEach(order => {
+    const origin = originLabel(order.origin)
+    const method = methodLabel(order.captureMethod || order.paymentMethod)
+    originTotals[origin] = (originTotals[origin] || 0) + Number(order.total || 0)
+    methodTotals[method] = (methodTotals[method] || 0) + Number(order.total || 0)
+  })
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  let logo = null
+  try { logo = await imageToDataUrl('/logo-piaget.png') } catch {}
+
+  const pageW = 210
+  const margin = 18
+  const contentW = pageW - (margin * 2)
+  const footerY = 286
+  let page = 1
+  let y = 16
+
+  const addHeader = () => {
+    if (logo) doc.addImage(logo, 'PNG', margin, 10, 36, 18.5)
+    doc.setTextColor(16, 58, 105)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.text('Relatório de pagamentos confirmados', margin, 38)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(92, 107, 123)
+    doc.text('Gincana Piaget 2026', margin, 45)
+    const emittedAt = new Date().toLocaleString('pt-BR')
+    doc.setFontSize(8.5)
+    doc.text(`Atualizado em ${emittedAt}`, margin, 51)
+    y = 60
+  }
+
+  const addFooter = () => {
+    doc.setDrawColor(224, 231, 239)
+    doc.line(margin, 278, pageW - margin, 278)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(105, 118, 132)
+    doc.text('Escola Piaget • (86) 9 9462-5073 • piaget.ejp@gmail.com', margin, 284)
+    doc.text(`Página ${page}`, pageW - margin, 284, { align: 'right' })
+  }
+
+  const newPage = () => {
+    addFooter()
+    doc.addPage()
+    page += 1
+    addHeader()
+  }
+
+  addHeader()
+
+  doc.setFillColor(247, 250, 253)
+  doc.setDrawColor(224, 231, 239)
+  doc.roundedRect(margin, y, contentW, 30, 4, 4, 'FD')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(23, 37, 54)
+  doc.setFontSize(10)
+  doc.text('Pagamentos', margin + 6, y + 8)
+  doc.text('Alunos', margin + 56, y + 8)
+  doc.text('Total confirmado', margin + 105, y + 8)
+  doc.setFontSize(18)
+  doc.setTextColor(11, 79, 162)
+  doc.text(String(confirmedOrders.length), margin + 6, y + 21)
+  doc.text(String(totalStudents), margin + 56, y + 21)
+  doc.text(money(totalReceived), margin + 105, y + 21)
+  y += 39
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(16, 58, 105)
+  doc.text('Resumo por forma de pagamento', margin, y)
+  y += 7
+
+  const methods = Object.entries(methodTotals)
+  if (methods.length) {
+    methods.forEach(([label, value]) => {
+      if (y > 255) newPage()
+      doc.setFillColor(250, 251, 253)
+      doc.roundedRect(margin, y - 4.5, contentW, 9, 2, 2, 'F')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9.5)
+      doc.setTextColor(61, 75, 90)
+      doc.text(label, margin + 4, y + 1)
+      doc.setFont('helvetica', 'bold')
+      doc.text(money(value), pageW - margin - 4, y + 1, { align: 'right' })
+      y += 11
+    })
+  } else {
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(105, 118, 132)
+    doc.setFontSize(9.5)
+    doc.text('Nenhum pagamento confirmado até o momento.', margin, y)
+    y += 10
+  }
+
+  y += 3
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(16, 58, 105)
+  doc.text('Resumo por origem', margin, y)
+  y += 7
+  Object.entries(originTotals).forEach(([label, value]) => {
+    if (y > 255) newPage()
+    doc.setFillColor(250, 251, 253)
+    doc.roundedRect(margin, y - 4.5, contentW, 9, 2, 2, 'F')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9.5)
+    doc.setTextColor(61, 75, 90)
+    doc.text(label, margin + 4, y + 1)
+    doc.setFont('helvetica', 'bold')
+    doc.text(money(value), pageW - margin - 4, y + 1, { align: 'right' })
+    y += 11
+  })
+
+  y += 3
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(16, 58, 105)
+  doc.text('Detalhamento dos pagamentos', margin, y)
+  y += 8
+
+  if (!confirmedOrders.length) {
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(105, 118, 132)
+    doc.setFontSize(10)
+    doc.text('Nenhum pagamento confirmado até o momento.', margin, y)
+  }
+
+  confirmedOrders.forEach((order, index) => {
+    const students = order.students || []
+    const studentLines = students.length
+      ? students.map(student => `${student.name} • ${student.grade || 'Turma não informada'} • Equipe ${student.team === 'AZUL' ? 'Azul' : student.team === 'LARANJA' ? 'Laranja' : student.team || '—'}`)
+      : ['Aluno não informado']
+    const studentTextLines = studentLines.flatMap(line => doc.splitTextToSize(line, 112))
+    const cardH = Math.max(34, 28 + (studentTextLines.length * 4.2))
+
+    if (y + cardH > 270) newPage()
+
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(224, 231, 239)
+    doc.roundedRect(margin, y, contentW, cardH, 3.5, 3.5, 'FD')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(23, 37, 54)
+    doc.setFontSize(10.5)
+    doc.text(`${index + 1}. ${order.responsibleName || 'Responsável não informado'}`, margin + 5, y + 8)
+    doc.setTextColor(11, 79, 162)
+    doc.setFontSize(11)
+    doc.text(money(order.total), pageW - margin - 5, y + 8, { align: 'right' })
+
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(92, 107, 123)
+    doc.setFontSize(8.7)
+    const paidDate = fmtDate(order.paidAt || order.createdAt)
+    doc.text(`Data: ${paidDate}`, margin + 5, y + 14)
+    doc.text(`WhatsApp: ${order.responsiblePhone || '—'}`, margin + 68, y + 14)
+
+    doc.setTextColor(61, 75, 90)
+    doc.setFontSize(9)
+    doc.text(`Origem: ${originLabel(order.origin)}`, margin + 5, y + 20)
+    doc.text(`Forma: ${methodLabel(order.captureMethod || order.paymentMethod)}`, margin + 68, y + 20)
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Aluno(s):', margin + 5, y + 26)
+    doc.setFont('helvetica', 'normal')
+    let sy = y + 26
+    studentTextLines.forEach((line, lineIndex) => {
+      if (lineIndex === 0) doc.text(line, margin + 24, sy)
+      else { sy += 4.2; doc.text(line, margin + 24, sy) }
+    })
+
+    const orderCodeY = y + cardH - 5
+    doc.setFontSize(7.7)
+    doc.setTextColor(125, 136, 148)
+    doc.text(`Pedido: ${order.id || order.orderNsu || '—'}`, margin + 5, orderCodeY)
+    if (order.operator?.email) doc.text(`Operador: ${order.operator.email}`, pageW - margin - 5, orderCodeY, { align: 'right' })
+
+    y += cardH + 5
+  })
+
+  addFooter()
+  doc.save(`Gincana-Piaget-2026-Pagamentos-Confirmados-${new Date().toLocaleDateString('pt-BR').replaceAll('/', '-')}.pdf`)
+}
+
 function ReturnApp() {
   const params = new URLSearchParams(window.location.search)
   const [status, setStatus] = useState('checking')
@@ -710,7 +921,7 @@ function AdminApp() {
   const pending = enriched.filter(s=>s.status==='pending_checkout' && s.record?.reservationExpiresAt?.toDate?.() > new Date())
   const revenue = orders.filter(o=>o.status==='paid').reduce((sum,o)=>sum+Number(o.total||0),0)
   const conflictOrders = orders.filter(o=>o.status==='paid_conflict')
-  const filtered = enriched.filter(s => (statusFilter==='all'||s.status===statusFilter) && (gradeFilter==='all'||s.grade===gradeFilter) && normalize(s.name).includes(normalize(search)))
+  const filtered = enriched.filter(s => (statusFilter==='all'||s.status===statusFilter) && (gradeFilter==='all'||s.grade===gradeFilter) && studentMatchesQuery(s, search))
   const byGrade = GRADES.map(grade => { const total=STUDENTS.filter(s=>s.grade===grade).length; const ok=confirmed.filter(s=>s.grade===grade).length; return {grade,total,ok,pct:Math.round(ok/total*100)} })
   const teamSummary = ['AZUL', 'LARANJA'].map(team => {
     const total = STUDENTS.filter(s => s.team === team).length
@@ -754,7 +965,7 @@ function AdminApp() {
   </>}
   {tab==='sale'&&<AdminSale user={user}/>} 
   {tab==='participants'&&<div className="admin-panel-card"><div className="table-filters"><input placeholder="Buscar aluno..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={gradeFilter} onChange={e=>setGradeFilter(e.target.value)}><option value="all">Todas as turmas</option>{GRADES.map(g=><option key={g}>{g}</option>)}</select><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Todos os status</option><option value="confirmed">Confirmados</option><option value="pending_checkout">Em pagamento</option><option value="available">Não confirmados</option><option value="cancelled">Cancelados</option></select></div><div className="table-wrap"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Equipe</th><th>Status</th><th>Pagamento</th><th>Data</th><th>Ações</th></tr></thead><tbody>{filtered.map(s=><tr key={s.id}><td><strong>{s.name}</strong><small>Matrícula {s.id}</small></td><td>{s.grade}</td><td><TeamBadge team={s.team}/></td><td><span className={`status ${s.status}`}>{s.status==='confirmed'?'Confirmado':s.status==='pending_checkout'?'Em pagamento':s.status==='cancelled'?'Cancelado':'Não confirmado'}</span></td><td>{methodLabel(s.record?.paymentMethod)}</td><td>{fmtDate(s.record?.confirmedAt)}</td><td>{s.status==='confirmed'&&<div className="row-actions"><button className="action-link" onClick={()=>downloadStudentPdf(s)}>PDF</button><button className="action-link whatsapp" onClick={()=>openStudentWhatsApp(s)}>WhatsApp</button><button className="danger-link" onClick={()=>cancel(s)}>Cancelar</button></div>}</td></tr>)}</tbody></table></div><p className="table-note">Para reenviar a confirmação: baixe o PDF do aluno e, em seguida, abra o WhatsApp. Por segurança do navegador, o anexo precisa ser selecionado manualmente na conversa.</p></div>}
-  {tab==='orders'&&<div className="admin-panel-card">{conflictOrders.length>0&&<div className="duplicate-payment-alert compact"><div><strong>⚠ Existem {conflictOrders.length} pagamento{conflictOrders.length===1?' duplicado':'s duplicados'} para revisar</strong><p>Esses links foram pagos depois de uma confirmação prioritária. O aluno permanece confirmado pela operação válida; confira o recebimento duplicado e providencie o estorno na InfinitePay.</p></div></div>}<div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Responsável</th><th>Alunos</th><th>Origem</th><th>Forma</th><th>Status</th><th>Valor</th><th>Data</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td><code>{o.id}</code></td><td>{o.responsibleName}<small>{o.responsiblePhone}</small></td><td>{o.students?.map(s=><span className="mini-student" key={s.id}>{s.name}</span>)}</td><td>{originLabel(o.origin)}</td><td>{methodLabel(o.captureMethod||o.paymentMethod)}</td><td><span className={`status ${o.status}`}>{o.status==='paid'?'Pago':o.status==='pending'?'Pendente':o.status==='paid_conflict'?'Duplicado — revisar/estornar':o.status==='superseded_by_manual'?'Substituído pelo presencial':o.status}</span>{o.status==='paid_conflict'&&<small className="refund-note">Pagamento recebido após outra confirmação. Conferir estorno.</small>}</td><td><strong>{money(o.total)}</strong></td><td>{fmtDate(o.createdAt)}</td></tr>)}</tbody></table></div></div>}
+  {tab==='orders'&&<div className="admin-panel-card"><div className="panel-title payments-report-title"><div><span>Financeiro</span><h2>Pagamentos</h2><p className="panel-subtitle">Acompanhe os registros e gere um demonstrativo completo dos pagamentos confirmados.</p></div><button className="secondary payments-pdf-button" onClick={()=>generateConfirmedPaymentsPdf(orders)}>Gerar relatório PDF</button></div>{conflictOrders.length>0&&<div className="duplicate-payment-alert compact"><div><strong>⚠ Existem {conflictOrders.length} pagamento{conflictOrders.length===1?' duplicado':'s duplicados'} para revisar</strong><p>Esses links foram pagos depois de uma confirmação prioritária. O aluno permanece confirmado pela operação válida; confira o recebimento duplicado e providencie o estorno na InfinitePay.</p></div></div>}<div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Responsável</th><th>Alunos</th><th>Origem</th><th>Forma</th><th>Status</th><th>Valor</th><th>Data</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td><code>{o.id}</code></td><td>{o.responsibleName}<small>{o.responsiblePhone}</small></td><td>{o.students?.map(s=><span className="mini-student" key={s.id}>{s.name}</span>)}</td><td>{originLabel(o.origin)}</td><td>{methodLabel(o.captureMethod||o.paymentMethod)}</td><td><span className={`status ${o.status}`}>{o.status==='paid'?'Pago':o.status==='pending'?'Pendente':o.status==='paid_conflict'?'Duplicado — revisar/estornar':o.status==='superseded_by_manual'?'Substituído pelo presencial':o.status}</span>{o.status==='paid_conflict'&&<small className="refund-note">Pagamento recebido após outra confirmação. Conferir estorno.</small>}</td><td><strong>{money(o.total)}</strong></td><td>{fmtDate(o.createdAt)}</td></tr>)}</tbody></table></div></div>}
   {tab==='tools'&&<AdminTools user={user}/>} 
   </main></div>
 }

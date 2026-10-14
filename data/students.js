@@ -75,7 +75,7 @@ export const STUDENTS = [
   { id: '241011', name: 'EMANUELLA OLIVEIRA TAVARES DE SOUSA', grade: '9º Ano', team: 'LARANJA' },
   { id: '220820', name: 'PABLO AYMAR G DO REGO SILVA', grade: '9º Ano', team: 'LARANJA' },
   { id: '251102', name: 'ANA JÚLIA DE MESQUITA BEZERRA', grade: '9º Ano', team: 'LARANJA' },
-  { id: '251104', name: 'MAYSA SILVA LOPES', grade: '9º Ano', team: 'LARANJA' },
+  { id: '251104', name: 'MAYSA SILVA LOPES', aliases: ['MAÍSA SILVA LOPES', 'MAISA SILVA LOPES'], grade: '9º Ano', team: 'LARANJA' },
   { id: '220801', name: 'ISABELLY MESQUITA DOS SANTOS', grade: '9º Ano', team: 'LARANJA' },
   { id: '220831', name: 'EMILLY KELLY SILVA AQUINO', grade: '9º Ano', team: 'LARANJA' },
   { id: '220832', name: 'EVILLY VICTÓRIA SILVA AQUINO', grade: '9º Ano', team: 'LARANJA' },

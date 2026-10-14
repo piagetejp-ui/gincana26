@@ -129,3 +129,8 @@ A partir desta versão, a secretaria pode confirmar presencialmente um aluno mes
 - O checkout online anterior é marcado como `superseded_by_manual` e deixa de reservar os alunos no sistema.
 - Se o link antigo for pago posteriormente na InfinitePay, o pagamento é registrado como `paid_conflict` e aparece no painel como duplicidade para conferência/estorno.
 - O pagamento duplicado não substitui a confirmação presencial existente.
+
+## V7 — busca tolerante para Maysa/Maísa
+- Mantém o nome oficial `MAYSA SILVA LOPES` (matrícula 251104) conforme a base escolar.
+- Adiciona os aliases `MAÍSA SILVA LOPES` e `MAISA SILVA LOPES` para que a aluna seja encontrada mesmo quando o responsável digitar a grafia mais comum “Maísa”.
+- A mesma busca tolerante vale também para a pesquisa na área de participantes da secretaria.
